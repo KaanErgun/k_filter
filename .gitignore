@@ -1,0 +1,18 @@
+# Derleme çıktıları
+*.o
+*.out
+*.elf
+
+# MacOS özel dosyaları
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Sanal ortam
+venv/
+
+# Geçici dosyalar
+*.log
+*.tmp
