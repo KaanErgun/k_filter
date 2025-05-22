@@ -112,21 +112,6 @@ This helps visually understand the difference between filters.
 
 ---
 
-## 🛑 .gitignore Highlights
-
-We exclude the following:
-
-```
-venv/
-__pycache__/
-simulated_filters.png
-*.o
-*.elf
-.DS_Store
-```
-
----
-
 ## 🤝 Contributing
 
 Pull requests are welcome! Add filters, optimize memory usage, or extend the Python simulation.
