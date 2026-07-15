@@ -22,6 +22,21 @@ module tb;
 `elsif F_DC
     dc_blocker_q15 #(.WIDTH(WIDTH), .R(32604))    dut (
         .clk(clk), .rst(rst), .in_valid(in_valid), .x(x), .y(y), .out_valid(out_valid));
+`elsif F_SLEW
+    slew_limiter  #(.WIDTH(WIDTH), .MAX_STEP(2000)) dut (
+        .clk(clk), .rst(rst), .in_valid(in_valid), .x(x), .y(y), .out_valid(out_valid));
+`elsif F_DEAD
+    deadband      #(.WIDTH(WIDTH), .THRESHOLD(500)) dut (
+        .clk(clk), .rst(rst), .in_valid(in_valid), .x(x), .y(y), .out_valid(out_valid));
+`elsif F_FIR
+    fir5          #(.WIDTH(WIDTH))                 dut (
+        .clk(clk), .rst(rst), .in_valid(in_valid), .x(x), .y(y), .out_valid(out_valid));
+`elsif F_BIQUAD
+    biquad_df1    #(.WIDTH(WIDTH))                 dut (
+        .clk(clk), .rst(rst), .in_valid(in_valid), .x(x), .y(y), .out_valid(out_valid));
+`elsif F_MED5
+    median5       #(.WIDTH(WIDTH))                 dut (
+        .clk(clk), .rst(rst), .in_valid(in_valid), .x(x), .y(y), .out_valid(out_valid));
 `endif
 
     always #5 clk = ~clk;

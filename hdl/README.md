@@ -11,8 +11,16 @@ Prototype in Python, then drop the identical behavior onto an MCU (C) or fabric 
 | `ema_q15` | 1st-order low-pass / EMA | `ALPHA` (Q15, 0..32767) |
 | `moving_avg` | power-of-2 boxcar average | `LOG2N` (window = 2^LOG2N) |
 | `dc_blocker_q15` | 1st-order high-pass / DC blocker | `R` (Q15 pole, ~0.995) |
+| `fir5` | 5-tap FIR low-pass | fixed Q15 taps (sum = 1.0) |
+| `biquad_df1` | 2nd-order IIR, Direct Form I | fixed Q12 RBJ low-pass |
+| `median5` | median of a 5-sample window | — (nonlinear rank) |
+| `slew_limiter` | slew-rate limiter | `MAX_STEP` |
+| `deadband` | deadband / hysteresis hold | `THRESHOLD` |
 
-Each exists as Verilog (`verilog/*.v`) and VHDL (`vhdl/*.vhd`).
+Each exists as Verilog (`verilog/*.v`) and VHDL (`vhdl/*.vhd`). FIR/biquad coefficients are fixed
+constants shared verbatim with the Python model (`sim/fixed_models.py`); change them there and in the
+HDL together. `median5` uses a small bubble sort in an HDL function — correct by construction and
+checked bit-for-bit by `make hdl`.
 
 ## Interface (identical for every module)
 

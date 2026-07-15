@@ -32,6 +32,16 @@ FILTERS = [
          vhd="moving_avg.vhd", tb="tb_mavg.vhd", ent="tb_mavg", c=False),
     dict(name="dc_blocker_q15", vdef="F_DC", vsrc="dc_blocker_q15.v",
          vhd="dc_blocker_q15.vhd", tb="tb_dc.vhd", ent="tb_dc", c=False),
+    dict(name="slew_limiter", vdef="F_SLEW", vsrc="slew_limiter.v",
+         vhd="slew_limiter.vhd", tb="tb_slew.vhd", ent="tb_slew", c=False),
+    dict(name="deadband", vdef="F_DEAD", vsrc="deadband.v",
+         vhd="deadband.vhd", tb="tb_dead.vhd", ent="tb_dead", c=False),
+    dict(name="fir5", vdef="F_FIR", vsrc="fir5.v",
+         vhd="fir5.vhd", tb="tb_fir.vhd", ent="tb_fir", c=False),
+    dict(name="biquad_df1", vdef="F_BIQUAD", vsrc="biquad_df1.v",
+         vhd="biquad_df1.vhd", tb="tb_biquad.vhd", ent="tb_biquad", c=False),
+    dict(name="median5", vdef="F_MED5", vsrc="median5.v",
+         vhd="median5.vhd", tb="tb_med5.vhd", ent="tb_med5", c=False),
 ]
 
 

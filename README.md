@@ -252,11 +252,19 @@ The same filters are provided as synthesizable **Verilog** and **VHDL** so the s
 MCU/CPU (C) *or* on an FPGA/ASIC (HDL) — and you can validate your data **bit-for-bit against Python**
 before committing to silicon.
 
-| Module | Verilog | VHDL | Kind |
-|--------|---------|------|------|
-| `ema_q15` | [hdl/verilog/ema_q15.v](hdl/verilog/ema_q15.v) | [hdl/vhdl/ema_q15.vhd](hdl/vhdl/ema_q15.vhd) | Q15 EMA / 1st-order low-pass |
-| `moving_avg` | [hdl/verilog/moving_avg.v](hdl/verilog/moving_avg.v) | [hdl/vhdl/moving_avg.vhd](hdl/vhdl/moving_avg.vhd) | power-of-2 boxcar |
-| `dc_blocker_q15` | [hdl/verilog/dc_blocker_q15.v](hdl/verilog/dc_blocker_q15.v) | [hdl/vhdl/dc_blocker_q15.vhd](hdl/vhdl/dc_blocker_q15.vhd) | Q15 high-pass / DC blocker |
+Eight synthesizable filters, each in **both Verilog** ([hdl/verilog/](hdl/verilog/)) **and VHDL**
+([hdl/vhdl/](hdl/vhdl/)):
+
+| Module | Kind |
+|--------|------|
+| `ema_q15` | Q15 EMA / 1st-order low-pass |
+| `moving_avg` | power-of-2 boxcar average |
+| `dc_blocker_q15` | Q15 high-pass / DC blocker |
+| `fir5` | 5-tap FIR (fixed Q15 low-pass) |
+| `biquad_df1` | 2nd-order IIR (Direct Form I) |
+| `median5` | 5-sample median (sorting network) |
+| `slew_limiter` | slew-rate limiter |
+| `deadband` | deadband / hysteresis hold |
 
 Each is a synchronous streaming block with a parameterized data `WIDTH` and coefficient:
 
@@ -281,6 +289,11 @@ filter           samples    Verilog   VHDL    C   verdict
 ema_q15              200          ✓      ✓    ✓   BIT-EXACT ✓
 moving_avg           200          ✓      ✓    —   BIT-EXACT ✓
 dc_blocker_q15       200          ✓      ✓    —   BIT-EXACT ✓
+fir5                 200          ✓      ✓    —   BIT-EXACT ✓
+biquad_df1           200          ✓      ✓    —   BIT-EXACT ✓
+median5              200          ✓      ✓    —   BIT-EXACT ✓
+slew_limiter         200          ✓      ✓    —   BIT-EXACT ✓
+deadband             200          ✓      ✓    —   BIT-EXACT ✓
 ```
 
 Needs [Icarus Verilog](http://iverilog.icarus.com/) and/or [GHDL](https://ghdl.github.io/ghdl/);
