@@ -4,6 +4,7 @@
  * Inputs are contractually finite (see k_filter.h); comparisons below rely on it.
  */
 
+#if KF_ENABLE_MOVING_AVERAGE
 /* ==========================================================================
  * Moving Average
  * ========================================================================== */
@@ -43,6 +44,9 @@ kf_float_t ma_peek(const MovingAverageFilter *filt) {
     return (kf_float_t)(filt->sum / (kf_acc_t)filt->count);
 }
 
+#endif /* KF_ENABLE_MOVING_AVERAGE */
+
+#if KF_ENABLE_LOW_PASS
 /* ==========================================================================
  * Low-Pass (1st-order IIR), seeds on first sample.
  * ========================================================================== */
@@ -84,6 +88,9 @@ kf_float_t lp_peek(const LowPassFilter *filt) {
     return filt->prev_output;
 }
 
+#endif /* KF_ENABLE_LOW_PASS */
+
+#if KF_ENABLE_MEDIAN
 /* ==========================================================================
  * Median: bounded, deterministic, no qsort / no VLA.
  * A fixed-size stack scratch (KF_MEDIAN_MAX_WINDOW) is insertion-sorted.
@@ -138,6 +145,9 @@ void med_reset(MedianFilter *filt) {
     for (i = 0U; i < filt->size; ++i) filt->buffer[i] = (kf_float_t)0;
 }
 
+#endif /* KF_ENABLE_MEDIAN */
+
+#if KF_ENABLE_EMA
 /* ==========================================================================
  * Exponential Moving Average (== 1st-order low-pass), seeds on first sample.
  * ========================================================================== */
@@ -179,6 +189,9 @@ kf_float_t ema_peek(const EMAFilter *filt) {
     return filt->ema_prev;
 }
 
+#endif /* KF_ENABLE_EMA */
+
+#if KF_ENABLE_KALMAN
 /* ==========================================================================
  * Kalman Filter (scalar, 1D) with process noise Q.
  * The `error_estimate += Q` step is the missing time-update that keeps the gain
@@ -223,6 +236,9 @@ kf_float_t kalman_peek(const KalmanFilter *filt) {
     return filt->estimate;
 }
 
+#endif /* KF_ENABLE_KALMAN */
+
+#if KF_ENABLE_ALPHA_BETA
 /* ==========================================================================
  * Alpha-Beta tracker (constant-velocity). Tracks a ramp with zero steady-state
  * lag because it carries a velocity state.
@@ -277,6 +293,9 @@ kf_float_t ab_velocity(const AlphaBetaFilter *filt) {
     return filt->v;
 }
 
+#endif /* KF_ENABLE_ALPHA_BETA */
+
+#if KF_ENABLE_DC_BLOCKER
 /* ==========================================================================
  * DC blocker / 1st-order high-pass. Seeds on the first sample.
  * ========================================================================== */
@@ -316,6 +335,9 @@ kf_float_t dc_peek(const DCBlocker *filt) {
     return filt->y_prev;
 }
 
+#endif /* KF_ENABLE_DC_BLOCKER */
+
+#if KF_ENABLE_COMPLEMENTARY
 /* ==========================================================================
  * Complementary filter (two-input sensor fusion).
  * ========================================================================== */
@@ -344,6 +366,9 @@ kf_float_t comp_peek(const ComplementaryFilter *filt) {
     return filt->angle;
 }
 
+#endif /* KF_ENABLE_COMPLEMENTARY */
+
+#if KF_ENABLE_BIQUAD
 /* ==========================================================================
  * Biquad (Direct Form II Transposed). Runtime is libm-free; the coefficient
  * designers live in the optional src/k_filter_design.c.
@@ -370,3 +395,4 @@ void biquad_reset(BiquadFilter *filt) {
     filt->z1 = (kf_float_t)0;
     filt->z2 = (kf_float_t)0;
 }
+#endif /* KF_ENABLE_BIQUAD */

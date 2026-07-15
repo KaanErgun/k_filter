@@ -18,7 +18,7 @@ SRC     := src/k_filter.c
 # Optional coefficient designers (needs libm) — NOT part of the freestanding core.
 DESIGN  := src/k_filter_design.c
 
-.PHONY: all test run parity compare analyze cross clean
+.PHONY: all test run parity compare footprint analyze cross clean
 
 all: $(BUILD)/example
 
@@ -47,6 +47,12 @@ parity: $(BUILD)/parity_dump
 # Metrics workbench: rank the smoothing filters on each test signal (pure Python).
 compare:
 	python3 sim/compare.py --all
+
+$(BUILD)/footprint: test/footprint.c $(SRC) | $(BUILD)
+	$(CC) $(CSTD) $(WARN) $(CFLAGS) $(INC) $^ -o $@ -lm
+
+footprint: $(BUILD)/footprint
+	./$(BUILD)/footprint
 
 analyze:
 	@command -v cppcheck >/dev/null 2>&1 \

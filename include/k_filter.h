@@ -33,6 +33,51 @@ extern "C" {
 /* ---- No-heap guarantee marker (grep-able for safety auditors) ------------- */
 #define KF_NO_HEAP 1
 
+/* ---- Compile-time feature toggles ----------------------------------------
+ * Each filter defaults to enabled. Define any of these to 0 (e.g.
+ * -DKF_ENABLE_KALMAN=0) to strip that filter's implementation from the build — a
+ * 16-32 KB flash part need not carry filters it never calls. The type/prototype
+ * declarations stay (they cost no flash); calling a disabled filter then fails to
+ * link, which is the intended early signal.
+ */
+#ifndef KF_ENABLE_MOVING_AVERAGE
+#define KF_ENABLE_MOVING_AVERAGE 1
+#endif
+#ifndef KF_ENABLE_LOW_PASS
+#define KF_ENABLE_LOW_PASS 1
+#endif
+#ifndef KF_ENABLE_MEDIAN
+#define KF_ENABLE_MEDIAN 1
+#endif
+#ifndef KF_ENABLE_EMA
+#define KF_ENABLE_EMA 1
+#endif
+#ifndef KF_ENABLE_KALMAN
+#define KF_ENABLE_KALMAN 1
+#endif
+#ifndef KF_ENABLE_ALPHA_BETA
+#define KF_ENABLE_ALPHA_BETA 1
+#endif
+#ifndef KF_ENABLE_DC_BLOCKER
+#define KF_ENABLE_DC_BLOCKER 1
+#endif
+#ifndef KF_ENABLE_COMPLEMENTARY
+#define KF_ENABLE_COMPLEMENTARY 1
+#endif
+#ifndef KF_ENABLE_BIQUAD
+#define KF_ENABLE_BIQUAD 1
+#endif
+
+/* ---- Compile-time assertion (C11 _Static_assert with a C89/C99 fallback) --- */
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#define KF_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
+#else
+#define KF_STATIC_ASSERT_CAT_(a, b) a##b
+#define KF_STATIC_ASSERT_CAT(a, b) KF_STATIC_ASSERT_CAT_(a, b)
+#define KF_STATIC_ASSERT(cond, msg) \
+    typedef char KF_STATIC_ASSERT_CAT(kf_static_assert_, __LINE__)[(cond) ? 1 : -1]
+#endif
+
 /* ---- Configurable scalar type --------------------------------------------
  * Default is float (single-precision FPU friendly). Define KF_USE_DOUBLE to
  * build the whole library in double precision (host reference / long integrators).
@@ -58,6 +103,7 @@ typedef KF_ACC_TYPE kf_acc_t;
 #ifndef KF_MEDIAN_MAX_WINDOW
 #define KF_MEDIAN_MAX_WINDOW 31
 #endif
+KF_STATIC_ASSERT(KF_MEDIAN_MAX_WINDOW >= 1, "KF_MEDIAN_MAX_WINDOW must be >= 1");
 
 /* ---- Status codes --------------------------------------------------------- */
 typedef enum {

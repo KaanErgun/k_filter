@@ -166,6 +166,38 @@ runtime.
 
 ---
 
+## 🧮 Footprint, timing & configuration
+
+RAM per instance on the default `float32` build (from `make footprint`). MA and Median also need a
+caller-owned buffer of `size` floats; every other filter is self-contained. Per-update cost is O(1)
+except the median, whose bounded insertion sort over its window is the only non-constant path (still
+deterministic — worst case is fixed by `KF_MEDIAN_MAX_WINDOW`).
+
+| Filter        | struct (bytes) | caller buffer      | per-update |
+|---------------|---------------:|--------------------|------------|
+| Moving Average| 24             | `size` × float     | O(1)       |
+| Low-Pass      | 12             | —                  | O(1)       |
+| Median        | 16             | `size` × float     | O(w) bounded |
+| EMA           | 12             | —                  | O(1)       |
+| Kalman 1D     | 20             | —                  | O(1)       |
+| Alpha-Beta    | 20             | —                  | O(1)       |
+| DC Blocker    | 16             | —                  | O(1)       |
+| Complementary | 8              | —                  | O(1)       |
+| Biquad        | 28             | —                  | O(1)       |
+
+**ISR / reentrancy:** every filter touches only its own struct (no globals or statics), so **distinct
+instances are reentrant and ISR-safe**. A *single* instance shared between an ISR and mainline still
+needs the caller's own guard.
+
+**Compile-time configuration:**
+
+| Macro | Default | Effect |
+|-------|---------|--------|
+| `KF_ENABLE_<FILTER>` | `1` | Set to `0` to strip that filter's code from the build (e.g. `-DKF_ENABLE_KALMAN=0`). |
+| `KF_USE_DOUBLE` | unset | Build the whole library in `double` precision. |
+| `KF_ACC_TYPE` | `double` | Moving-average accumulator type (override to avoid `double` on FPU-less parts). |
+| `KF_MEDIAN_MAX_WINDOW` | `31` | Upper bound on a median window (bounds the stack scratch; checked with a static assert). |
+
 ## 📊 Python Simulation
 
 ```bash

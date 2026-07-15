@@ -6,6 +6,9 @@
  * to biquad_init(). The core src/k_filter.c never includes <math.h>.
  */
 #include "k_filter.h"
+
+#if KF_ENABLE_BIQUAD   /* nothing to design if the biquad runtime is compiled out */
+
 #include <math.h>
 
 #define KF_PI 3.14159265358979323846
@@ -69,3 +72,5 @@ kf_status_t biquad_design_notch(BiquadFilter *filt, kf_float_t fc, kf_float_t q,
     if (s != KF_OK) return s;
     return store(filt, 1.0, -2.0 * cw, 1.0, 1.0 + al, -2.0 * cw, 1.0 - al);
 }
+
+#endif /* KF_ENABLE_BIQUAD */

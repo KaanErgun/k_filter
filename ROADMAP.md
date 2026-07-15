@@ -58,8 +58,8 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
       Verified: low-pass has unity DC gain; notch attenuates a 50 Hz tone; C↔Python design parity.
 - [x] **`kf_float_t` configurable scalar type** — one typedef compiles the whole library as
       `float` (default) or `double`. *(Delivered in Tier 0.)*
-- [ ] **Compile-time feature toggles** (`KF_ENABLE_*`) + `_Static_assert` config validation +
-      grep-able `KF_NO_HEAP` marker. *(`KF_NO_HEAP` marker already added in Tier 0.)*
+- [x] **Compile-time feature toggles** (`KF_ENABLE_*`) + `KF_STATIC_ASSERT` config validation +
+      grep-able `KF_NO_HEAP` marker. Verified: disabling a filter strips its symbols from the object.
 - [x] **C-vs-Python parity harness** — a checked-in input vector run through both sides, asserted
       equal. Keeps the teaching mirror honest. Now covers 8 filters. *(Delivered in Tier 0.)*
 - [x] **Python metrics engine** — RMSE, lag-compensated RMSE, error-reduction (dB), lag
@@ -67,7 +67,8 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
       the `sim/compare.py` workbench (`make compare`). Pure-Python, runs in CI.
 - [x] **Python test-signal library** — step / ramp / impulse / square / chirp / sine + spike
       injection + CSV import, in `sim/signals.py` (pure-Python, no numpy).
-- [ ] **Footprint / worst-case-timing / ISR-reentrancy documentation table.** *(next up)*
+- [x] **Footprint / worst-case-timing / ISR-reentrancy documentation table** — real `sizeof` numbers
+      via `make footprint`; table + timing + ISR notes in the README. **Tier 1 now complete.**
 
 ## Tier 2 — Nice to have
 
@@ -124,5 +125,10 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   square/chirp/sine + spike injection + CSV import) and `sim/metrics.py` (RMSE, lag-compensated RMSE,
   error-reduction dB, cross-correlation lag, overshoot, settling), driven by `sim/compare.py`
   (`make compare`) which ranks the smoothers per signal with a plain-language recommendation. All
-  pure-Python (no numpy) and smoke-tested in CI. **Next (It.4): footprint/timing docs + compile-time
-  feature toggles** to close Tier 1.
+  pure-Python (no numpy) and smoke-tested in CI.
+- **2026-07-15** — **Embedded ergonomics (It.4) — Tier 1 complete.** Added `KF_ENABLE_*` compile-time
+  toggles (disabling a filter strips its code — verified via `nm`), a `KF_STATIC_ASSERT` macro (C11
+  `_Static_assert` with a C99 fallback) guarding `KF_MEDIAN_MAX_WINDOW`, a `make footprint` target,
+  and a README footprint / worst-case-timing / ISR-reentrancy + configuration table with real
+  `sizeof` numbers. **Next: Tier 2 filters (It.5)** — Hampel, slew-rate limiter, deadband/hysteresis,
+  One-Euro.
