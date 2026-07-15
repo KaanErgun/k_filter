@@ -15,6 +15,8 @@ INC     := -Iinclude
 
 BUILD   := build
 SRC     := src/k_filter.c
+# Optional coefficient designers (needs libm) — NOT part of the freestanding core.
+DESIGN  := src/k_filter_design.c
 
 .PHONY: all test run parity analyze cross clean
 
@@ -26,7 +28,7 @@ $(BUILD):
 $(BUILD)/example: examples/filter_test.c $(SRC) | $(BUILD)
 	$(CC) $(CSTD) $(WARN) $(CFLAGS) $(INC) $^ -o $@ -lm
 
-$(BUILD)/test_filters: test/test_filters.c $(SRC) | $(BUILD)
+$(BUILD)/test_filters: test/test_filters.c $(SRC) $(DESIGN) | $(BUILD)
 	$(CC) $(CSTD) $(WARN) -Werror $(CFLAGS) $(INC) -Itest $^ -o $@ -lm
 
 test: $(BUILD)/test_filters
@@ -36,7 +38,7 @@ run: $(BUILD)/example
 	./$(BUILD)/example
 
 # double-precision harness so C-vs-Python parity measures algorithm, not float32.
-$(BUILD)/parity_dump: test/parity_dump.c $(SRC) | $(BUILD)
+$(BUILD)/parity_dump: test/parity_dump.c $(SRC) $(DESIGN) | $(BUILD)
 	$(CC) $(CSTD) $(WARN) $(CFLAGS) -DKF_USE_DOUBLE $(INC) $^ -o $@ -lm
 
 parity: $(BUILD)/parity_dump

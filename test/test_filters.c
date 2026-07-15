@@ -123,6 +123,84 @@ static void test_kalman_validation(void) {
     KT_ASSERT_EQ_INT(kalman_init(&k, 1.0f, 1.0f, 0.1f, 0.0f), KF_OK);
 }
 
+/* ---- Alpha-Beta: tracks a ramp with ~zero lag (unlike the scalar Kalman). - */
+static void test_alphabeta_zero_ramp_lag(void) {
+    AlphaBetaFilter ab;
+    KT_ASSERT_EQ_INT(ab_init_tracking(&ab, 0.5f, 1.0f, 0.0f), KF_OK);
+
+    kf_float_t z = 0.0f, est = 0.0f;
+    for (int i = 1; i <= 400; ++i) {
+        z = (kf_float_t)i;
+        est = ab_update(&ab, z);
+    }
+    /* Constant-velocity model: the velocity state converges to the ramp slope,
+     * so the position lag settles to ~0 (vs the scalar Kalman's fixed lag). */
+    KT_ASSERT_NEAR((double)(z - est), 0.0, 0.05);
+    KT_ASSERT_NEAR((double)ab_velocity(&ab), 1.0, 0.02);
+}
+
+static void test_alphabeta_validation(void) {
+    AlphaBetaFilter ab;
+    KT_ASSERT_EQ_INT(ab_init(&ab, 0.0f, 0.1f, 1.0f, 0.0f), KF_ERR_PARAM); /* a<=0 */
+    KT_ASSERT_EQ_INT(ab_init(&ab, 2.0f, 0.1f, 1.0f, 0.0f), KF_ERR_PARAM); /* a>=2 */
+    KT_ASSERT_EQ_INT(ab_init(&ab, 0.5f, 0.1f, 0.0f, 0.0f), KF_ERR_PARAM); /* dt<=0 */
+    KT_ASSERT_EQ_INT(ab_init_tracking(&ab, 1.0f, 1.0f, 0.0f), KF_ERR_PARAM); /* r>=1 */
+    KT_ASSERT_EQ_INT(ab_init(&ab, 0.5f, 0.1f, 1.0f, 0.0f), KF_OK);
+}
+
+/* ---- DC blocker: removes a constant offset (drives it to 0). ------------- */
+static void test_dc_blocks_constant(void) {
+    DCBlocker dc;
+    KT_ASSERT_EQ_INT(dc_init(&dc, 0.99f), KF_OK);
+    KT_ASSERT_NEAR(dc_update(&dc, 5.0f), 0.0f, 1e-6);  /* first output seeds to 0 */
+    kf_float_t y = 0.0f;
+    for (int i = 0; i < 50; ++i) y = dc_update(&dc, 5.0f);
+    KT_ASSERT_NEAR(y, 0.0f, 1e-6);                     /* constant fully blocked */
+
+    KT_ASSERT_EQ_INT(dc_init(&dc, 1.0f), KF_ERR_PARAM);
+    KT_ASSERT_EQ_INT(dc_init(&dc, -0.1f), KF_ERR_PARAM);
+}
+
+/* ---- Complementary: fuses toward the absolute reference. ----------------- */
+static void test_complementary_converges(void) {
+    ComplementaryFilter c;
+    KT_ASSERT_EQ_INT(comp_init(&c, 0.98f, 0.0f), KF_OK);
+    kf_float_t a = 0.0f;
+    /* rate = 0, reference = 10: angle relaxes toward the reference. */
+    for (int i = 0; i < 500; ++i) a = comp_update(&c, 0.0f, 10.0f, 0.01f);
+    KT_ASSERT_NEAR(a, 10.0f, 0.5f);
+    KT_ASSERT_EQ_INT(comp_init(&c, 1.5f, 0.0f), KF_ERR_PARAM);
+}
+
+/* ---- Biquad: unity DC gain (low-pass) and notch attenuation. ------------- */
+static void test_biquad_lowpass_unity_dc(void) {
+    BiquadFilter bq;
+    KT_ASSERT_EQ_INT(biquad_design_lowpass(&bq, 5.0f, 0.707f, 100.0f), KF_OK);
+    kf_float_t y = 0.0f;
+    for (int i = 0; i < 500; ++i) y = biquad_update(&bq, 1.0f);
+    KT_ASSERT_NEAR(y, 1.0f, 1e-3);   /* a low-pass passes DC with unity gain */
+
+    /* below Nyquist is required */
+    KT_ASSERT_EQ_INT(biquad_design_lowpass(&bq, 60.0f, 0.707f, 100.0f), KF_ERR_PARAM);
+}
+
+static void test_biquad_notch_attenuates(void) {
+    BiquadFilter bq;
+    const double fs = 1000.0, fnotch = 50.0;
+    KT_ASSERT_EQ_INT(biquad_design_notch(&bq, (kf_float_t)fnotch, 5.0f, (kf_float_t)fs), KF_OK);
+
+    double peak = 0.0;
+    for (int i = 0; i < 2000; ++i) {
+        kf_float_t x = (kf_float_t)sin(2.0 * 3.14159265358979 * fnotch * i / fs);
+        kf_float_t y = biquad_update(&bq, x);
+        if (i > 1500) {                       /* measure the settled tail */
+            double ay = (y < 0) ? -(double)y : (double)y;
+            if (ay > peak) peak = ay;
+        }
+    }
+    KT_ASSERT(peak < 0.15);                   /* the notch kills the 50 Hz tone */
+}
+
 int main(void) {
     printf("k_filter %s tests\n", K_FILTER_VERSION);
     KT_RUN(test_ma_warmup_and_average);
@@ -134,5 +212,11 @@ int main(void) {
     KT_RUN(test_ema_seeds_and_converges);
     KT_RUN(test_kalman_tracks_ramp);
     KT_RUN(test_kalman_validation);
+    KT_RUN(test_alphabeta_zero_ramp_lag);
+    KT_RUN(test_alphabeta_validation);
+    KT_RUN(test_dc_blocks_constant);
+    KT_RUN(test_complementary_converges);
+    KT_RUN(test_biquad_lowpass_unity_dc);
+    KT_RUN(test_biquad_notch_attenuates);
     return KT_SUMMARY();
 }

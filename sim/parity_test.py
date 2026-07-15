@@ -13,7 +13,8 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from filters import MovingAverage, LowPass, Median, EMA, Kalman1D  # noqa: E402
+from filters import (MovingAverage, LowPass, Median, EMA, Kalman1D,  # noqa: E402
+                     DCBlocker, AlphaBeta, Biquad)
 
 TOL = 1e-9  # double-vs-double: this is algorithmic parity, not float32 rounding
 
@@ -46,10 +47,14 @@ def run_py(xs):
     ema = EMA(0.1)
     kal = Kalman1D(error_measure=0.25, error_estimate=1.0,
                    process_noise=0.05, initial_estimate=0.0)
+    dc = DCBlocker(0.995)
+    ab = AlphaBeta.tracking(0.6, 1.0, 0.0)
+    bq = Biquad.lowpass(5.0, 0.707, 100.0)
     rows = []
     for x in xs:
         rows.append([ma.update(x), lp.update(x), med.update(x),
-                     ema.update(x), kal.update(x)])
+                     ema.update(x), kal.update(x),
+                     dc.update(x), ab.update(x), bq.update(x)])
     return rows
 
 
@@ -65,11 +70,13 @@ def main():
         print(f"FAIL: row count {len(c_rows)} (C) vs {len(py_rows)} (Py)")
         return 1
 
-    names = ["MovingAverage", "LowPass", "Median", "EMA", "Kalman1D"]
-    worst = [0.0] * 5
+    names = ["MovingAverage", "LowPass", "Median", "EMA", "Kalman1D",
+             "DCBlocker", "AlphaBeta", "Biquad(LP)"]
+    ncol = len(names)
+    worst = [0.0] * ncol
     fails = 0
     for r, (cr, pr) in enumerate(zip(c_rows, py_rows)):
-        for j in range(5):
+        for j in range(ncol):
             d = abs(cr[j] - pr[j])
             worst[j] = max(worst[j], d)
             if d > TOL:
@@ -77,7 +84,7 @@ def main():
                 if fails <= 5:
                     print(f"  FAIL row {r} {names[j]}: C={cr[j]!r} Py={pr[j]!r} d={d:.3e}")
 
-    for j in range(5):
+    for j in range(ncol):
         print(f"  {names[j]:14s} max |C-Py| = {worst[j]:.3e}")
     if fails:
         print(f"\nFAILED: {fails} mismatches (tol {TOL:g})")

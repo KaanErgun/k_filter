@@ -20,6 +20,10 @@ See [ROADMAP.md](ROADMAP.md) for the v2.0 plan and what is coming next.
 | Median                      | Rejects outliers/spikes. No `qsort`, no VLA — bounded, deterministic timing.  |
 | Exponential Moving Average  | Memory-efficient smoothing (mathematically a 1st-order low-pass).            |
 | Kalman Filter (1D)          | Scalar tracker **with process noise Q** — keeps tracking a moving signal.     |
+| Alpha-Beta Tracker          | Constant-velocity tracker; follows a ramp with ~zero lag (carries velocity).  |
+| DC Blocker / High-Pass      | Removes constant bias & slow drift (gravity, ECG/EMG baseline wander).        |
+| Complementary               | Two-sensor fusion (e.g. gyro + accel → angle); cheap IMU tilt estimate.       |
+| Biquad (2nd-order IIR)      | Sharp low/high/band-pass and **50/60 Hz notch** (Direct Form II Transposed).  |
 
 ---
 
@@ -48,7 +52,8 @@ See [ROADMAP.md](ROADMAP.md) for the v2.0 plan and what is coming next.
 ```
 k_filter/
 ├── include/k_filter.h        # Public API (single header)
-├── src/k_filter.c            # Implementation (single .c, dependency-free)
+├── src/k_filter.c            # Implementation (single .c, dependency-free core)
+├── src/k_filter_design.c     # Optional biquad coefficient designers (needs libm)
 ├── examples/filter_test.c    # Usage example
 ├── test/                     # Host-only unit tests + parity harness
 │   ├── k_test.h
@@ -110,7 +115,20 @@ kalman_init(&kf, 0.25f, 1.0f, 0.05f, 0.0f);
 float estimate = kalman_update(&kf, measurement);
 ```
 
-> ✅ No heap allocation (grep-able `KF_NO_HEAP`). No libc/libm in the runtime. Inputs are assumed
+Notch out 50 Hz mains hum with a biquad (running at 1 kHz):
+
+```c
+BiquadFilter notch;
+/* fc, Q, fs — designed once; runtime is libm-free */
+biquad_design_notch(&notch, 50.0f, 5.0f, 1000.0f);
+float clean = biquad_update(&notch, raw);
+```
+
+> The `biquad_design_*` helpers live in the **optional** `src/k_filter_design.c` (needs libm for
+> `sin`/`cos`). Add that file only if you design coefficients on the target; otherwise precompute
+> them offline and pass them to `biquad_init()`. The core `src/k_filter.c` never touches libm.
+
+> ✅ No heap allocation (grep-able `KF_NO_HEAP`). No libc/libm in the runtime core. Inputs are assumed
 > finite (reject NaN/Inf upstream if your source can emit one).
 
 ---
@@ -157,9 +175,9 @@ The `sim/filters.py` classes mirror the C filters exactly; `make parity` proves 
 
 ## 🤝 Contributing
 
-Pull requests welcome — see [ROADMAP.md](ROADMAP.md) for planned filters (biquad/notch, alpha-beta
-tracker, DC blocker, complementary filter, …) and the anti-scope guardrails that keep the library
-lightweight and dependency-free.
+Pull requests welcome — see [ROADMAP.md](ROADMAP.md) for what's next (Python metrics engine,
+test-signal library, compile-time feature toggles, Hampel / one-euro / fixed-point filters) and the
+anti-scope guardrails that keep the library lightweight and dependency-free.
 
 ## 📜 License
 

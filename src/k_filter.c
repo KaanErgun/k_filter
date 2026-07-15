@@ -222,3 +222,151 @@ kf_float_t kalman_peek(const KalmanFilter *filt) {
     if (filt == NULL) return (kf_float_t)0;
     return filt->estimate;
 }
+
+/* ==========================================================================
+ * Alpha-Beta tracker (constant-velocity). Tracks a ramp with zero steady-state
+ * lag because it carries a velocity state.
+ * ========================================================================== */
+kf_status_t ab_init(AlphaBetaFilter *filt, kf_float_t a, kf_float_t b,
+                    kf_float_t dt, kf_float_t x0) {
+    if (filt == NULL) return KF_ERR_NULL;
+    /* Stable region (roughly): 0 < a < 2, 0 < b < 4, dt > 0. */
+    if (a <= (kf_float_t)0 || a >= (kf_float_t)2) return KF_ERR_PARAM;
+    if (b <= (kf_float_t)0 || b >= (kf_float_t)4) return KF_ERR_PARAM;
+    if (dt <= (kf_float_t)0) return KF_ERR_PARAM;
+    filt->a = a;
+    filt->b = b;
+    filt->dt = dt;
+    filt->x = x0;
+    filt->v = (kf_float_t)0;
+    return KF_OK;
+}
+
+kf_status_t ab_init_tracking(AlphaBetaFilter *filt, kf_float_t r,
+                             kf_float_t dt, kf_float_t x0) {
+    kf_float_t one_minus_r;
+    if (filt == NULL) return KF_ERR_NULL;
+    if (r <= (kf_float_t)0 || r >= (kf_float_t)1) return KF_ERR_PARAM;
+    /* Critically-damped gains from a single smoothing pole r in (0,1). */
+    one_minus_r = (kf_float_t)1 - r;
+    return ab_init(filt, (kf_float_t)1 - r * r, one_minus_r * one_minus_r, dt, x0);
+}
+
+kf_float_t ab_update(AlphaBetaFilter *filt, kf_float_t measurement) {
+    kf_float_t residual;
+    filt->x += filt->v * filt->dt;                 /* predict */
+    residual = measurement - filt->x;              /* innovation */
+    filt->x += filt->a * residual;
+    filt->v += (filt->b / filt->dt) * residual;
+    return filt->x;
+}
+
+void ab_reset(AlphaBetaFilter *filt, kf_float_t x0) {
+    if (filt == NULL) return;
+    filt->x = x0;
+    filt->v = (kf_float_t)0;
+}
+
+kf_float_t ab_peek(const AlphaBetaFilter *filt) {
+    if (filt == NULL) return (kf_float_t)0;
+    return filt->x;
+}
+
+kf_float_t ab_velocity(const AlphaBetaFilter *filt) {
+    if (filt == NULL) return (kf_float_t)0;
+    return filt->v;
+}
+
+/* ==========================================================================
+ * DC blocker / 1st-order high-pass. Seeds on the first sample.
+ * ========================================================================== */
+kf_status_t dc_init(DCBlocker *filt, kf_float_t r) {
+    if (filt == NULL) return KF_ERR_NULL;
+    if (r < (kf_float_t)0 || r >= (kf_float_t)1) return KF_ERR_PARAM;
+    filt->r = r;
+    filt->x_prev = (kf_float_t)0;
+    filt->y_prev = (kf_float_t)0;
+    filt->initialized = 0U;
+    return KF_OK;
+}
+
+kf_float_t dc_update(DCBlocker *filt, kf_float_t new_sample) {
+    kf_float_t y;
+    if (!filt->initialized) {
+        filt->x_prev = new_sample;   /* seed: first output is 0, no transient */
+        filt->y_prev = (kf_float_t)0;
+        filt->initialized = 1U;
+        return (kf_float_t)0;
+    }
+    y = new_sample - filt->x_prev + filt->r * filt->y_prev;
+    filt->x_prev = new_sample;
+    filt->y_prev = y;
+    return y;
+}
+
+void dc_reset(DCBlocker *filt) {
+    if (filt == NULL) return;
+    filt->x_prev = (kf_float_t)0;
+    filt->y_prev = (kf_float_t)0;
+    filt->initialized = 0U;
+}
+
+kf_float_t dc_peek(const DCBlocker *filt) {
+    if (filt == NULL) return (kf_float_t)0;
+    return filt->y_prev;
+}
+
+/* ==========================================================================
+ * Complementary filter (two-input sensor fusion).
+ * ========================================================================== */
+kf_status_t comp_init(ComplementaryFilter *filt, kf_float_t alpha, kf_float_t angle0) {
+    if (filt == NULL) return KF_ERR_NULL;
+    if (alpha < (kf_float_t)0 || alpha > (kf_float_t)1) return KF_ERR_PARAM;
+    filt->alpha = alpha;
+    filt->angle = angle0;
+    return KF_OK;
+}
+
+kf_float_t comp_update(ComplementaryFilter *filt, kf_float_t rate,
+                       kf_float_t reference, kf_float_t dt) {
+    filt->angle = filt->alpha * (filt->angle + rate * dt)
+                + ((kf_float_t)1 - filt->alpha) * reference;
+    return filt->angle;
+}
+
+void comp_reset(ComplementaryFilter *filt, kf_float_t angle0) {
+    if (filt == NULL) return;
+    filt->angle = angle0;
+}
+
+kf_float_t comp_peek(const ComplementaryFilter *filt) {
+    if (filt == NULL) return (kf_float_t)0;
+    return filt->angle;
+}
+
+/* ==========================================================================
+ * Biquad (Direct Form II Transposed). Runtime is libm-free; the coefficient
+ * designers live in the optional src/k_filter_design.c.
+ * ========================================================================== */
+kf_status_t biquad_init(BiquadFilter *filt, kf_float_t b0, kf_float_t b1,
+                        kf_float_t b2, kf_float_t a1, kf_float_t a2) {
+    if (filt == NULL) return KF_ERR_NULL;
+    filt->b0 = b0; filt->b1 = b1; filt->b2 = b2;
+    filt->a1 = a1; filt->a2 = a2;
+    filt->z1 = (kf_float_t)0;
+    filt->z2 = (kf_float_t)0;
+    return KF_OK;
+}
+
+kf_float_t biquad_update(BiquadFilter *filt, kf_float_t new_sample) {
+    kf_float_t y = filt->b0 * new_sample + filt->z1;
+    filt->z1 = filt->b1 * new_sample - filt->a1 * y + filt->z2;
+    filt->z2 = filt->b2 * new_sample - filt->a2 * y;
+    return y;
+}
+
+void biquad_reset(BiquadFilter *filt) {
+    if (filt == NULL) return;
+    filt->z1 = (kf_float_t)0;
+    filt->z2 = (kf_float_t)0;
+}

@@ -3,6 +3,7 @@
 Kept numerically faithful to the C implementation so the simulation teaches what
 the embedded code actually does. A parity test (sim/parity_test.py) enforces it.
 """
+import math
 
 
 class MovingAverage:
@@ -93,3 +94,91 @@ class Kalman1D:
         self.estimate = self.estimate + k * (measurement - self.estimate)
         self.error_estimate = (1 - k) * self.error_estimate
         return self.estimate
+
+
+class AlphaBeta:
+    """Constant-velocity tracker: carries a velocity state, so it follows a ramp
+    with ~zero steady-state lag (matches ab_update)."""
+
+    def __init__(self, a, b, dt, x0=0.0):
+        self.a, self.b, self.dt = a, b, dt
+        self.x, self.v = x0, 0.0
+
+    @classmethod
+    def tracking(cls, r, dt, x0=0.0):
+        """Critically-damped gains from a single smoothing pole r in (0, 1)."""
+        return cls(1 - r * r, (1 - r) ** 2, dt, x0)
+
+    def update(self, z):
+        self.x += self.v * self.dt
+        residual = z - self.x
+        self.x += self.a * residual
+        self.v += (self.b / self.dt) * residual
+        return self.x
+
+
+class DCBlocker:
+    """1st-order high-pass: y = x - x_prev + r*y_prev. Seeds on first sample."""
+
+    def __init__(self, r):
+        self.r = r
+        self.x_prev = 0.0
+        self.y_prev = 0.0
+        self.initialized = False
+
+    def update(self, x):
+        if not self.initialized:
+            self.x_prev = x
+            self.y_prev = 0.0
+            self.initialized = True
+            return 0.0
+        y = x - self.x_prev + self.r * self.y_prev
+        self.x_prev = x
+        self.y_prev = y
+        return y
+
+
+class Complementary:
+    """Two-input fusion: angle = alpha*(angle + rate*dt) + (1-alpha)*reference."""
+
+    def __init__(self, alpha, angle0=0.0):
+        self.alpha = alpha
+        self.angle = angle0
+
+    def update(self, rate, reference, dt):
+        self.angle = self.alpha * (self.angle + rate * dt) + (1 - self.alpha) * reference
+        return self.angle
+
+
+class Biquad:
+    """2nd-order IIR (Direct Form II Transposed). Coefficients normalized a0=1."""
+
+    def __init__(self, b0, b1, b2, a1, a2):
+        self.b0, self.b1, self.b2 = b0, b1, b2
+        self.a1, self.a2 = a1, a2
+        self.z1 = 0.0
+        self.z2 = 0.0
+
+    def update(self, x):
+        y = self.b0 * x + self.z1
+        self.z1 = self.b1 * x - self.a1 * y + self.z2
+        self.z2 = self.b2 * x - self.a2 * y
+        return y
+
+    @staticmethod
+    def _rbj(fc, q, fs):
+        w0 = 2.0 * math.pi * fc / fs
+        return math.cos(w0), math.sin(w0), math.sin(w0) / (2.0 * q)
+
+    @classmethod
+    def lowpass(cls, fc, q, fs):
+        cw, _sw, al = cls._rbj(fc, q, fs)
+        a0 = 1.0 + al
+        return cls((1 - cw) / 2 / a0, (1 - cw) / a0, (1 - cw) / 2 / a0,
+                   (-2 * cw) / a0, (1 - al) / a0)
+
+    @classmethod
+    def notch(cls, fc, q, fs):
+        cw, _sw, al = cls._rbj(fc, q, fs)
+        a0 = 1.0 + al
+        return cls(1 / a0, (-2 * cw) / a0, 1 / a0, (-2 * cw) / a0, (1 - al) / a0)

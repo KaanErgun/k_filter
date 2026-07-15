@@ -160,6 +160,96 @@ void        kalman_reset(KalmanFilter *filt,
                          kf_float_t initial_estimate);
 kf_float_t  kalman_peek(const KalmanFilter *filt);
 
+/* ==========================================================================
+ * Alpha-Beta tracker (constant-velocity model).
+ *   The fixed-gain steady-state cousin of a 2-state Kalman: it carries a
+ *   velocity state, so unlike the scalar Kalman it tracks a ramp with ZERO
+ *   steady-state lag. `a` is the position gain, `b` the velocity gain, `dt`
+ *   the sample interval (from your timer tick).
+ *   ab_init_tracking() derives stable critically-damped gains from a single
+ *   smoothing parameter r in (0, 1): larger r = smoother, slower.
+ * ========================================================================== */
+typedef struct {
+    kf_float_t x;   /* position estimate */
+    kf_float_t v;   /* velocity estimate */
+    kf_float_t a;   /* position gain      */
+    kf_float_t b;   /* velocity gain      */
+    kf_float_t dt;  /* sample interval    */
+} AlphaBetaFilter;
+
+kf_status_t ab_init(AlphaBetaFilter *filt, kf_float_t a, kf_float_t b,
+                    kf_float_t dt, kf_float_t x0);
+kf_status_t ab_init_tracking(AlphaBetaFilter *filt, kf_float_t r,
+                             kf_float_t dt, kf_float_t x0);
+kf_float_t  ab_update(AlphaBetaFilter *filt, kf_float_t measurement);
+void        ab_reset(AlphaBetaFilter *filt, kf_float_t x0);
+kf_float_t  ab_peek(const AlphaBetaFilter *filt);      /* position */
+kf_float_t  ab_velocity(const AlphaBetaFilter *filt);  /* estimated rate */
+
+/* ==========================================================================
+ * DC blocker / 1st-order high-pass.
+ *   y[n] = x[n] - x[n-1] + r * y[n-1].  Removes constant bias and slow drift
+ *   (e.g. gravity from an accelerometer, ECG/EMG baseline wander). `r` in
+ *   [0, 1): closer to 1 = lower cutoff. Seeds on the first sample (no transient).
+ * ========================================================================== */
+typedef struct {
+    kf_float_t x_prev;
+    kf_float_t y_prev;
+    kf_float_t r;
+    uint8_t    initialized;
+} DCBlocker;
+
+kf_status_t dc_init(DCBlocker *filt, kf_float_t r);
+kf_float_t  dc_update(DCBlocker *filt, kf_float_t new_sample);
+void        dc_reset(DCBlocker *filt);
+kf_float_t  dc_peek(const DCBlocker *filt);
+
+/* ==========================================================================
+ * Complementary filter (two-sensor fusion, e.g. gyro + accel -> angle).
+ *   angle = alpha*(angle + rate*dt) + (1 - alpha)*reference.
+ *   This is the ONE sanctioned exception to the single-input update convention:
+ *   it fuses a fast integrated rate with a slow absolute reference.
+ *   alpha in [0, 1]: closer to 1 trusts the integrated rate more.
+ * ========================================================================== */
+typedef struct {
+    kf_float_t angle;
+    kf_float_t alpha;
+} ComplementaryFilter;
+
+kf_status_t comp_init(ComplementaryFilter *filt, kf_float_t alpha, kf_float_t angle0);
+kf_float_t  comp_update(ComplementaryFilter *filt, kf_float_t rate,
+                        kf_float_t reference, kf_float_t dt);
+void        comp_reset(ComplementaryFilter *filt, kf_float_t angle0);
+kf_float_t  comp_peek(const ComplementaryFilter *filt);
+
+/* ==========================================================================
+ * Biquad — 2nd-order IIR, Direct Form II Transposed (2 state words).
+ *   Sharp low/high/band-pass and, critically, a notch to kill 50/60 Hz mains
+ *   hum or a known vibration line. Coefficients are normalized (a0 = 1).
+ *   The runtime (biquad_update) is pure arithmetic — libm-free.
+ *   Cascade several in a caller array for higher-order responses.
+ *
+ *   The biquad_design_* helpers below compute coefficients from (fc, Q, fs)
+ *   using the RBJ cookbook. They live in the OPTIONAL src/k_filter_design.c,
+ *   which needs libm (sin/cos) and is NOT part of the freestanding core — omit
+ *   that file (or precompute coefficients offline) to keep an MCU build libm-free.
+ * ========================================================================== */
+typedef struct {
+    kf_float_t b0, b1, b2;
+    kf_float_t a1, a2;
+    kf_float_t z1, z2;   /* state */
+} BiquadFilter;
+
+kf_status_t biquad_init(BiquadFilter *filt, kf_float_t b0, kf_float_t b1,
+                        kf_float_t b2, kf_float_t a1, kf_float_t a2);
+kf_float_t  biquad_update(BiquadFilter *filt, kf_float_t new_sample);
+void        biquad_reset(BiquadFilter *filt);
+
+kf_status_t biquad_design_lowpass(BiquadFilter *filt, kf_float_t fc, kf_float_t q, kf_float_t fs);
+kf_status_t biquad_design_highpass(BiquadFilter *filt, kf_float_t fc, kf_float_t q, kf_float_t fs);
+kf_status_t biquad_design_bandpass(BiquadFilter *filt, kf_float_t fc, kf_float_t q, kf_float_t fs);
+kf_status_t biquad_design_notch(BiquadFilter *filt, kf_float_t fc, kf_float_t q, kf_float_t fs);
+
 #ifdef __cplusplus
 }
 #endif

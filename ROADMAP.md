@@ -43,23 +43,27 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
 
 ## Tier 1 — New filters (high value, each keeps the identity)
 
-- [ ] **Alpha-beta (constant-velocity) tracker** — the honest "Kalman with Q"; carries a velocity
-      state so it tracks ramps. 5 floats, ~6 flops, no matrix algebra.
-- [ ] **DC blocker / 1st-order high-pass** — the library has no high-pass at all. Strips sensor
-      bias / slow drift (gravity from an accelerometer, ECG/EMG baseline wander). ~3 floats.
-- [ ] **Complementary filter** — cheap gyro+accel fusion. The one documented exception to the
+- [x] **Alpha-beta (constant-velocity) tracker** — the honest "Kalman with Q"; carries a velocity
+      state so it tracks ramps. 5 floats, ~6 flops, no matrix algebra. Verified: tracks a ramp with
+      ~0 steady-state lag (`test_alphabeta_zero_ramp_lag`). `ab_init_tracking(r,...)` derives stable
+      critically-damped gains from one parameter.
+- [x] **DC blocker / 1st-order high-pass** — the library had no high-pass at all. Strips sensor
+      bias / slow drift (gravity from an accelerometer, ECG/EMG baseline wander). 3 floats, seeds on
+      first sample. Verified: drives a constant offset to 0.
+- [x] **Complementary filter** — cheap gyro+accel fusion. The one documented exception to the
       single-input `update` convention (inherently two inputs).
-- [ ] **Biquad 2nd-order IIR (DF2T)** + gated coefficient-design helpers — sharp low/high/band-pass
-      and **50/60 Hz notch**. Runtime is 7 floats and libm-free; the `sinf/cosf/sqrtf` design helpers
-      stay behind `K_FILTER_ENABLE_DESIGN`.
+- [x] **Biquad 2nd-order IIR (DF2T)** + coefficient-design helpers — sharp low/high/band-pass and
+      **50/60 Hz notch**. Runtime is 7 floats and libm-free; the RBJ `sin/cos` design helpers live in
+      the **optional** `src/k_filter_design.c` (needs libm) so the freestanding core stays clean.
+      Verified: low-pass has unity DC gain; notch attenuates a 50 Hz tone; C↔Python design parity.
 - [x] **`kf_float_t` configurable scalar type** — one typedef compiles the whole library as
       `float` (default) or `double`. *(Delivered in Tier 0.)*
 - [ ] **Compile-time feature toggles** (`KF_ENABLE_*`) + `_Static_assert` config validation +
       grep-able `KF_NO_HEAP` marker. *(`KF_NO_HEAP` marker already added in Tier 0.)*
 - [x] **C-vs-Python parity harness** — a checked-in input vector run through both sides, asserted
-      equal. Keeps the teaching mirror honest. *(Delivered in Tier 0.)*
+      equal. Keeps the teaching mirror honest. Now covers 8 filters. *(Delivered in Tier 0.)*
 - [ ] **Python metrics engine** — RMSE, error-reduction (dB), lag, overshoot/settling + a
-      side-by-side comparison table.
+      side-by-side comparison table. *(next up)*
 - [ ] **Python test-signal library** — step / ramp / impulse / square / chirp + spike injection +
       CSV import of a real sensor trace.
 - [ ] **Footprint / worst-case-timing / ISR-reentrancy documentation table.**
@@ -109,5 +113,10 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   `set_alpha`, `uint16_t` sizes, `kf_float_t`, wide MA accumulator. 38 unit checks pass under
   gcc/clang `-Werror`; CMake + ctest green; C-vs-Python parity ~5e-15 over 400 samples; example shows
   Kalman tracking. CI (tests × gcc/clang, parity, cppcheck, arm freestanding + include guardrail) added.
-  `kf_float_t` and the parity harness pulled forward from Tier 1. **Next: Tier 1 new filters**
-  (alpha-beta tracker → DC blocker/high-pass → complementary → biquad/notch).
+  `kf_float_t` and the parity harness pulled forward from Tier 1.
+- **2026-07-15** — **Tier 1 filters complete.** Added 4 new filters — alpha-beta tracker (zero ramp
+  lag), DC blocker / high-pass, complementary (2-input fusion), and biquad (DF2T) with an optional
+  RBJ coefficient designer (`src/k_filter_design.c`, libm-isolated). Library now has **9 filters**.
+  **59 unit checks** pass under `-Werror`; parity harness extended to **8 filters** (~5e-15); core
+  object verified free of malloc/qsort/trig/printf. **Next: Python metrics engine + test-signal
+  library**, then Tier 1's footprint/timing docs and compile-time feature toggles.
