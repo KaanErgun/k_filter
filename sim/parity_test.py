@@ -14,7 +14,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from filters import (MovingAverage, LowPass, Median, EMA, Kalman1D,  # noqa: E402
-                     DCBlocker, AlphaBeta, Biquad)
+                     DCBlocker, AlphaBeta, Biquad,
+                     Hampel, SlewLimiter, Deadband, OneEuro)
 
 TOL = 1e-9  # double-vs-double: this is algorithmic parity, not float32 rounding
 
@@ -50,11 +51,16 @@ def run_py(xs):
     dc = DCBlocker(0.995)
     ab = AlphaBeta.tracking(0.6, 1.0, 0.0)
     bq = Biquad.lowpass(5.0, 0.707, 100.0)
+    hp = Hampel(5, 3.0)
+    sl = SlewLimiter(0.5)
+    db = Deadband(0.2)
+    oe = OneEuro(1.0, 0.5, 1.0, 0.05)
     rows = []
     for x in xs:
         rows.append([ma.update(x), lp.update(x), med.update(x),
                      ema.update(x), kal.update(x),
-                     dc.update(x), ab.update(x), bq.update(x)])
+                     dc.update(x), ab.update(x), bq.update(x),
+                     hp.update(x), sl.update(x), db.update(x), oe.update(x)])
     return rows
 
 
@@ -71,7 +77,8 @@ def main():
         return 1
 
     names = ["MovingAverage", "LowPass", "Median", "EMA", "Kalman1D",
-             "DCBlocker", "AlphaBeta", "Biquad(LP)"]
+             "DCBlocker", "AlphaBeta", "Biquad(LP)",
+             "Hampel", "SlewLimiter", "Deadband", "OneEuro"]
     ncol = len(names)
     worst = [0.0] * ncol
     fails = 0

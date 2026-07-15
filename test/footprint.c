@@ -19,5 +19,9 @@ int main(void) {
     printf("%-22s %6zu   %s\n", "DCBlocker",           sizeof(DCBlocker),           "none");
     printf("%-22s %6zu   %s\n", "ComplementaryFilter", sizeof(ComplementaryFilter), "none");
     printf("%-22s %6zu   %s\n", "BiquadFilter",        sizeof(BiquadFilter),        "none");
+    printf("%-22s %6zu   %s\n", "HampelFilter",        sizeof(HampelFilter),        "size * kf_float_t");
+    printf("%-22s %6zu   %s\n", "SlewLimiter",         sizeof(SlewLimiter),         "none");
+    printf("%-22s %6zu   %s\n", "Deadband",            sizeof(Deadband),            "none");
+    printf("%-22s %6zu   %s\n", "OneEuroFilter",       sizeof(OneEuroFilter),       "none");
     return 0;
 }

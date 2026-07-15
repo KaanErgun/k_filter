@@ -72,9 +72,12 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
 
 ## Tier 2 — Nice to have
 
-- [ ] **Hampel filter** — robust outlier rejection that preserves clean samples (reuses median).
-- [ ] **Slew-rate limiter + deadband / hysteresis** — signal-conditioning primitives.
-- [ ] **One-Euro filter** — adaptive-cutoff low-pass for jittery interactive (touch / IMU-UI) input.
+- [x] **Hampel filter** — robust outlier rejection that preserves clean samples. Verified: rejects a
+      spike (emits the median), passes an in-threshold sample through unchanged.
+- [x] **Slew-rate limiter + deadband / hysteresis** — signal-conditioning primitives (exposed as two
+      distinct filters). Verified: slew clamps the per-sample change; deadband holds until threshold.
+- [x] **One-Euro filter** — adaptive-cutoff low-pass for jittery interactive (touch / IMU-UI) input.
+      libm-free (the 2*pi is a compile-time constant). Verified: seeds and converges to the level.
 - [ ] **Optional fixed-point (Q15/Q16) variants** for FPU-less parts, behind a toggle.
 - [ ] **Golden-vector regression tests + coverage gate + micro-benchmark report.**
 - [ ] **Empirical Bode / step-response characterization** in the sim.
@@ -130,5 +133,9 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   toggles (disabling a filter strips its code — verified via `nm`), a `KF_STATIC_ASSERT` macro (C11
   `_Static_assert` with a C99 fallback) guarding `KF_MEDIAN_MAX_WINDOW`, a `make footprint` target,
   and a README footprint / worst-case-timing / ISR-reentrancy + configuration table with real
-  `sizeof` numbers. **Next: Tier 2 filters (It.5)** — Hampel, slew-rate limiter, deadband/hysteresis,
-  One-Euro.
+  `sizeof` numbers.
+- **2026-07-15** — **Tier 2 filters (It.5).** Added Hampel (robust outlier rejection), slew-rate
+  limiter, deadband/hysteresis, and the One-Euro adaptive-cutoff filter (all libm-free, toggle-gated).
+  Library now has **13 filters**. **82 unit checks** pass under `-Werror`; parity harness extended to
+  **12 filters** (~5e-15). **Next (It.6): QA + sim polish** — golden-vector regression, coverage gate,
+  micro-benchmark report, empirical Bode/step response, failure-mode gallery.

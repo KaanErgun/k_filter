@@ -182,3 +182,107 @@ class Biquad:
         cw, _sw, al = cls._rbj(fc, q, fs)
         a0 = 1.0 + al
         return cls(1 / a0, (-2 * cw) / a0, 1 / a0, (-2 * cw) / a0, (1 - al) / a0)
+
+
+def _median(vals):
+    s = sorted(vals)
+    n = len(s)
+    mid = n // 2
+    return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2.0
+
+
+class Hampel:
+    """Robust outlier rejection: emits the window median for outliers, passes
+    clean samples through unchanged (matches hampel_update)."""
+
+    def __init__(self, size, n_sigma):
+        self.size = size
+        self.buffer = [0.0] * size
+        self.index = 0
+        self.count = 0
+        self.n_sigma = n_sigma
+
+    def update(self, x):
+        self.buffer[self.index] = x
+        self.index = (self.index + 1) % self.size
+        if self.count < self.size:
+            self.count += 1
+        n = self.count
+        m = _median(self.buffer[:n])
+        mad = _median([abs(self.buffer[i] - m) for i in range(n)])
+        thr = self.n_sigma * 1.4826 * mad
+        return m if abs(x - m) > thr else x
+
+
+class SlewLimiter:
+    """Bounds |output change| per sample. Seeds on first sample."""
+
+    def __init__(self, max_step):
+        self.max_step = max_step
+        self.y = 0.0
+        self.initialized = False
+
+    def update(self, x):
+        if not self.initialized:
+            self.y = x
+            self.initialized = True
+            return self.y
+        d = x - self.y
+        if d > self.max_step:
+            d = self.max_step
+        elif d < -self.max_step:
+            d = -self.max_step
+        self.y += d
+        return self.y
+
+
+class Deadband:
+    """Holds the last output until the input moves beyond `threshold`."""
+
+    def __init__(self, threshold):
+        self.threshold = threshold
+        self.y = 0.0
+        self.initialized = False
+
+    def update(self, x):
+        if not self.initialized:
+            self.y = x
+            self.initialized = True
+            return self.y
+        if abs(x - self.y) > self.threshold:
+            self.y = x
+        return self.y
+
+
+class OneEuro:
+    """Adaptive-cutoff low-pass for jittery input (matches one_euro_update)."""
+
+    def __init__(self, min_cutoff, beta, dcutoff, dt):
+        self.min_cutoff = min_cutoff
+        self.beta = beta
+        self.dcutoff = dcutoff
+        self.dt = dt
+        self.x_prev = 0.0
+        self.dx_hat = 0.0
+        self.x_hat = 0.0
+        self.initialized = False
+
+    def _alpha(self, cutoff):
+        tau = 1.0 / (2.0 * math.pi * cutoff)
+        return self.dt / (self.dt + tau)
+
+    def update(self, x):
+        if not self.initialized:
+            self.x_prev = x
+            self.dx_hat = 0.0
+            self.x_hat = x
+            self.initialized = True
+            return x
+        dx = (x - self.x_prev) / self.dt
+        a_d = self._alpha(self.dcutoff)
+        self.dx_hat = a_d * dx + (1 - a_d) * self.dx_hat
+        cutoff = self.min_cutoff + self.beta * abs(self.dx_hat)
+        a = self._alpha(cutoff)
+        self.x_hat = a * x + (1 - a) * self.x_hat
+        self.x_prev = x
+        return self.x_hat

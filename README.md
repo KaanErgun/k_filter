@@ -24,6 +24,10 @@ See [ROADMAP.md](ROADMAP.md) for the v2.0 plan and what is coming next.
 | DC Blocker / High-Pass      | Removes constant bias & slow drift (gravity, ECG/EMG baseline wander).        |
 | Complementary               | Two-sensor fusion (e.g. gyro + accel → angle); cheap IMU tilt estimate.       |
 | Biquad (2nd-order IIR)      | Sharp low/high/band-pass and **50/60 Hz notch** (Direct Form II Transposed).  |
+| Hampel                      | Robust outlier rejection — passes clean samples, replaces only spikes.        |
+| Slew-Rate Limiter           | Bounds output change per sample — protects actuators, rejects jumps.          |
+| Deadband / Hysteresis       | Holds output until input moves beyond a threshold — kills chatter.            |
+| One-Euro                    | Adaptive-cutoff low-pass for jittery interactive (touch / IMU-UI) input.      |
 
 ---
 
@@ -184,6 +188,10 @@ deterministic — worst case is fixed by `KF_MEDIAN_MAX_WINDOW`).
 | DC Blocker    | 16             | —                  | O(1)       |
 | Complementary | 8              | —                  | O(1)       |
 | Biquad        | 28             | —                  | O(1)       |
+| Hampel        | 24             | `size` × float     | O(w) bounded |
+| Slew Limiter  | 12             | —                  | O(1)       |
+| Deadband      | 12             | —                  | O(1)       |
+| One-Euro      | 32             | —                  | O(1)       |
 
 **ISR / reentrancy:** every filter touches only its own struct (no globals or statics), so **distinct
 instances are reentrant and ISR-safe**. A *single* instance shared between an ISR and mainline still

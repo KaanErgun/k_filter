@@ -201,6 +201,63 @@ static void test_biquad_notch_attenuates(void) {
     KT_ASSERT(peak < 0.15);                   /* the notch kills the 50 Hz tone */
 }
 
+/* ---- Hampel: rejects spikes but passes clean samples untouched. --------- */
+static void test_hampel_rejects_spike_passes_clean(void) {
+    kf_float_t buf[5];
+    HampelFilter h;
+    KT_ASSERT_EQ_INT(hampel_init(&h, buf, 5, 3.0f), KF_OK);
+
+    for (int i = 0; i < 5; ++i) (void)hampel_update(&h, 10.0f);   /* window of 10s */
+    KT_ASSERT_NEAR(hampel_update(&h, 10.0f), 10.0f, 1e-4);        /* clean passes */
+    KT_ASSERT_NEAR(hampel_update(&h, 50.0f), 10.0f, 1e-4);        /* spike -> median */
+
+    /* A normal continuation of a varying signal passes through unchanged. */
+    hampel_reset(&h);
+    (void)hampel_update(&h, 10.0f);
+    (void)hampel_update(&h, 11.0f);
+    (void)hampel_update(&h, 12.0f);
+    (void)hampel_update(&h, 13.0f);
+    (void)hampel_update(&h, 14.0f);
+    KT_ASSERT_NEAR(hampel_update(&h, 15.0f), 15.0f, 1e-4);        /* within threshold */
+
+    KT_ASSERT_EQ_INT(hampel_init(&h, buf, 0, 3.0f), KF_ERR_PARAM);
+    KT_ASSERT_EQ_INT(hampel_init(&h, buf, 5, -1.0f), KF_ERR_PARAM);
+}
+
+/* ---- Slew-rate limiter: bounds the change per sample. -------------------- */
+static void test_slew_limits_step(void) {
+    SlewLimiter s;
+    KT_ASSERT_EQ_INT(slew_init(&s, 2.0f), KF_OK);
+    KT_ASSERT_NEAR(slew_update(&s, 10.0f), 10.0f, 1e-4);   /* seed */
+    KT_ASSERT_NEAR(slew_update(&s, 20.0f), 12.0f, 1e-4);   /* +10 clamped to +2 */
+    KT_ASSERT_NEAR(slew_update(&s, 20.0f), 14.0f, 1e-4);
+    KT_ASSERT_NEAR(slew_update(&s, 5.0f), 12.0f, 1e-4);    /* -9 clamped to -2 */
+    KT_ASSERT_EQ_INT(slew_init(&s, -1.0f), KF_ERR_PARAM);
+}
+
+/* ---- Deadband: holds until the input moves beyond the threshold. --------- */
+static void test_deadband_holds(void) {
+    Deadband d;
+    KT_ASSERT_EQ_INT(deadband_init(&d, 1.0f), KF_OK);
+    KT_ASSERT_NEAR(deadband_update(&d, 10.0f), 10.0f, 1e-4);  /* seed */
+    KT_ASSERT_NEAR(deadband_update(&d, 10.5f), 10.0f, 1e-4);  /* within band -> hold */
+    KT_ASSERT_NEAR(deadband_update(&d, 12.0f), 12.0f, 1e-4);  /* beyond band -> snap */
+    KT_ASSERT_NEAR(deadband_update(&d, 11.5f), 12.0f, 1e-4);  /* within band -> hold */
+    KT_ASSERT_EQ_INT(deadband_init(&d, -1.0f), KF_ERR_PARAM);
+}
+
+/* ---- One-Euro: seeds, then converges to a constant input. ---------------- */
+static void test_one_euro_converges(void) {
+    OneEuroFilter e;
+    KT_ASSERT_EQ_INT(one_euro_init(&e, 1.0f, 0.1f, 1.0f, 0.01f), KF_OK);
+    KT_ASSERT_NEAR(one_euro_update(&e, 0.0f), 0.0f, 1e-4);   /* seed */
+    kf_float_t y = 0.0f;
+    for (int i = 0; i < 300; ++i) y = one_euro_update(&e, 10.0f);
+    KT_ASSERT_NEAR(y, 10.0f, 0.1);                            /* tracks the level */
+    KT_ASSERT_EQ_INT(one_euro_init(&e, 0.0f, 0.1f, 1.0f, 0.01f), KF_ERR_PARAM); /* min_cutoff<=0 */
+    KT_ASSERT_EQ_INT(one_euro_init(&e, 1.0f, 0.1f, 1.0f, 0.0f), KF_ERR_PARAM);  /* dt<=0 */
+}
+
 int main(void) {
     printf("k_filter %s tests\n", K_FILTER_VERSION);
     KT_RUN(test_ma_warmup_and_average);
@@ -218,5 +275,9 @@ int main(void) {
     KT_RUN(test_complementary_converges);
     KT_RUN(test_biquad_lowpass_unity_dc);
     KT_RUN(test_biquad_notch_attenuates);
+    KT_RUN(test_hampel_rejects_spike_passes_clean);
+    KT_RUN(test_slew_limits_step);
+    KT_RUN(test_deadband_holds);
+    KT_RUN(test_one_euro_converges);
     return KT_SUMMARY();
 }

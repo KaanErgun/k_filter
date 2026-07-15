@@ -67,6 +67,18 @@ extern "C" {
 #ifndef KF_ENABLE_BIQUAD
 #define KF_ENABLE_BIQUAD 1
 #endif
+#ifndef KF_ENABLE_HAMPEL
+#define KF_ENABLE_HAMPEL 1
+#endif
+#ifndef KF_ENABLE_SLEW
+#define KF_ENABLE_SLEW 1
+#endif
+#ifndef KF_ENABLE_DEADBAND
+#define KF_ENABLE_DEADBAND 1
+#endif
+#ifndef KF_ENABLE_ONE_EURO
+#define KF_ENABLE_ONE_EURO 1
+#endif
 
 /* ---- Compile-time assertion (C11 _Static_assert with a C89/C99 fallback) --- */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
@@ -295,6 +307,83 @@ kf_status_t biquad_design_lowpass(BiquadFilter *filt, kf_float_t fc, kf_float_t 
 kf_status_t biquad_design_highpass(BiquadFilter *filt, kf_float_t fc, kf_float_t q, kf_float_t fs);
 kf_status_t biquad_design_bandpass(BiquadFilter *filt, kf_float_t fc, kf_float_t q, kf_float_t fs);
 kf_status_t biquad_design_notch(BiquadFilter *filt, kf_float_t fc, kf_float_t q, kf_float_t fs);
+
+/* ==========================================================================
+ * Hampel filter — robust outlier rejection.
+ *   Over a caller-provided window it computes the median m and the MAD (median
+ *   of |x_i - m|). If |x_new - m| > n_sigma * 1.4826 * MAD the sample is an
+ *   outlier and the median m is emitted; otherwise x_new passes through
+ *   UNCHANGED — so clean samples and edges are preserved, unlike a plain median.
+ *   buffer: caller-owned, `size` elements, 1 <= size <= KF_MEDIAN_MAX_WINDOW.
+ * ========================================================================== */
+typedef struct {
+    kf_float_t *buffer;
+    uint16_t    size;
+    uint16_t    index;
+    uint16_t    count;
+    kf_float_t  n_sigma;   /* outlier threshold in robust std-devs (e.g. 3) */
+} HampelFilter;
+
+kf_status_t hampel_init(HampelFilter *filt, kf_float_t *buffer, uint16_t size, kf_float_t n_sigma);
+kf_float_t  hampel_update(HampelFilter *filt, kf_float_t new_sample);
+void        hampel_reset(HampelFilter *filt);
+
+/* ==========================================================================
+ * Slew-rate limiter — bounds how far the output can move per sample.
+ *   Protects actuators/setpoints and rejects one-sample jumps. Deterministic,
+ *   bounded output. Seeds on the first sample.
+ * ========================================================================== */
+typedef struct {
+    kf_float_t y;
+    kf_float_t max_step;   /* maximum |change| per update, >= 0 */
+    uint8_t    initialized;
+} SlewLimiter;
+
+kf_status_t slew_init(SlewLimiter *filt, kf_float_t max_step);
+kf_float_t  slew_update(SlewLimiter *filt, kf_float_t new_sample);
+void        slew_reset(SlewLimiter *filt);
+kf_float_t  slew_peek(const SlewLimiter *filt);
+
+/* ==========================================================================
+ * Deadband / hysteresis hold — kills chatter around a value.
+ *   Holds the last output until the input moves beyond `threshold`, then snaps
+ *   to it. Fewer needless display updates / actuations (real power savings).
+ * ========================================================================== */
+typedef struct {
+    kf_float_t y;
+    kf_float_t threshold;  /* input must move beyond this to update, >= 0 */
+    uint8_t    initialized;
+} Deadband;
+
+kf_status_t deadband_init(Deadband *filt, kf_float_t threshold);
+kf_float_t  deadband_update(Deadband *filt, kf_float_t new_sample);
+void        deadband_reset(Deadband *filt);
+kf_float_t  deadband_peek(const Deadband *filt);
+
+/* ==========================================================================
+ * One-Euro filter — adaptive-cutoff low-pass for jittery interactive signals.
+ *   Heavy smoothing when the signal is still, low lag when it moves fast — best
+ *   on touch / IMU-UI / pointing input. Needs dt. libm-free (the 2*pi is a
+ *   compile-time constant; no trig/exp).
+ *   min_cutoff (Hz) sets the floor smoothing; beta sets how fast the cutoff
+ *   opens up with speed; dcutoff (Hz) smooths the derivative estimate.
+ * ========================================================================== */
+typedef struct {
+    kf_float_t min_cutoff;
+    kf_float_t beta;
+    kf_float_t dcutoff;
+    kf_float_t dt;
+    kf_float_t x_prev;     /* previous raw input        */
+    kf_float_t dx_hat;     /* filtered derivative        */
+    kf_float_t x_hat;      /* filtered output            */
+    uint8_t    initialized;
+} OneEuroFilter;
+
+kf_status_t one_euro_init(OneEuroFilter *filt, kf_float_t min_cutoff, kf_float_t beta,
+                          kf_float_t dcutoff, kf_float_t dt);
+kf_float_t  one_euro_update(OneEuroFilter *filt, kf_float_t new_sample);
+void        one_euro_reset(OneEuroFilter *filt);
+kf_float_t  one_euro_peek(const OneEuroFilter *filt);
 
 #ifdef __cplusplus
 }
