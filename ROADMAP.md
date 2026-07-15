@@ -79,7 +79,9 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
       distinct filters). Verified: slew clamps the per-sample change; deadband holds until threshold.
 - [x] **One-Euro filter** — adaptive-cutoff low-pass for jittery interactive (touch / IMU-UI) input.
       libm-free (the 2*pi is a compile-time constant). Verified: seeds and converges to the level.
-- [ ] **Optional fixed-point (Q15/Q16) variants** for FPU-less parts, behind a toggle.
+- [x] **Optional fixed-point (Q15/Q16) variants** for FPU-less parts — `src/k_filter_fixed.c` +
+      `include/k_filter_fixed.h` with integer moving-average and Q15 EMA/low-pass. Verified: the object
+      is integer-only (no float/libm symbols). Separately compilable; the float core is untouched.
 - [x] **Coverage + micro-benchmark report** — `make coverage` (gcov line coverage of the tests) and
       `make bench` (ns/update per filter). *(Golden-vector regression still pending.)*
 - [x] **Empirical Bode / step-response characterization** — `make bode` prints per-filter gain (dB) /
@@ -146,5 +148,9 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   1.2 ns … Hampel 29 ns, confirming the median/Hampel are the costly paths), `make coverage` (gcov),
   and `sim/bode.py` / `make bode` (empirical gain/phase; MA(5) nulls at fs/5, biquad −3 dB at cutoff).
   **Removed the GitHub Actions workflow** at the user's request — all verification is now local `make`
-  targets. **Next (It.7): fixed-point Q15/Q16 variants.** (Deferred backlog: golden-vector regression,
-  failure-mode gallery, slider tuner, true O(w) streaming median, README asset auto-gen.)
+  targets.
+- **2026-07-15** — **Fixed-point variants (It.7).** Added `src/k_filter_fixed.c` +
+  `include/k_filter_fixed.h`: integer moving-average and Q15 EMA/low-pass for FPU-less parts (no float,
+  no libm, no 64-bit; saturating). **93 unit checks** pass; the fixed-point object verified integer-only.
+  Remaining backlog (lower priority): golden-vector regression, failure-mode gallery, slider tuner,
+  true O(w) streaming median, README asset auto-gen.

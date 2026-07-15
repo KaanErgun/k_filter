@@ -58,6 +58,7 @@ k_filter/
 ├── include/k_filter.h        # Public API (single header)
 ├── src/k_filter.c            # Implementation (single .c, dependency-free core)
 ├── src/k_filter_design.c     # Optional biquad coefficient designers (needs libm)
+├── src/k_filter_fixed.c      # Optional integer/Q15 variants for FPU-less parts
 ├── examples/filter_test.c    # Usage example
 ├── test/                     # Host-only unit tests + parity harness
 │   ├── k_test.h
@@ -199,6 +200,21 @@ deterministic — worst case is fixed by `KF_MEDIAN_MAX_WINDOW`).
 **ISR / reentrancy:** every filter touches only its own struct (no globals or statics), so **distinct
 instances are reentrant and ISR-safe**. A *single* instance shared between an ISR and mainline still
 needs the caller's own guard.
+
+**Fixed-point variants (FPU-less parts).** On a Cortex-M0 / AVR without an FPU, every float op is a
+soft-float call. The optional `src/k_filter_fixed.c` + `include/k_filter_fixed.h` provide integer
+variants of the cheap linear filters — **no float, no libm, no 64-bit math**:
+
+```c
+#include "k_filter_fixed.h"
+
+EMAFixed ema;
+ema_fixed_init(&ema, KF_ALPHA_Q15(0.1f));   /* alpha in Q15, computed once at config time */
+int16_t y = ema_fixed_update(&ema, adc_sample);
+```
+
+Add that one `.c` file only if you need it; the float core is untouched. The fixed-point low-pass is
+the same filter as `EMAFixed`; Kalman/biquad stay float-only.
 
 **Compile-time configuration:**
 

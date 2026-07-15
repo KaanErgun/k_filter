@@ -17,6 +17,8 @@ BUILD   := build
 SRC     := src/k_filter.c
 # Optional coefficient designers (needs libm) — NOT part of the freestanding core.
 DESIGN  := src/k_filter_design.c
+# Optional fixed-point (integer) variants for FPU-less parts.
+FIXED   := src/k_filter_fixed.c
 
 .PHONY: all test run parity compare bode footprint bench coverage analyze cross clean
 
@@ -28,7 +30,7 @@ $(BUILD):
 $(BUILD)/example: examples/filter_test.c $(SRC) | $(BUILD)
 	$(CC) $(CSTD) $(WARN) $(CFLAGS) $(INC) $^ -o $@ -lm
 
-$(BUILD)/test_filters: test/test_filters.c $(SRC) $(DESIGN) | $(BUILD)
+$(BUILD)/test_filters: test/test_filters.c $(SRC) $(DESIGN) $(FIXED) | $(BUILD)
 	$(CC) $(CSTD) $(WARN) -Werror $(CFLAGS) $(INC) -Itest $^ -o $@ -lm
 
 test: $(BUILD)/test_filters

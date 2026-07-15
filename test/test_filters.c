@@ -1,4 +1,5 @@
 #include "k_filter.h"
+#include "k_filter_fixed.h"
 #include "k_test.h"
 
 /* ---- Moving Average ------------------------------------------------------ */
@@ -258,6 +259,31 @@ static void test_one_euro_converges(void) {
     KT_ASSERT_EQ_INT(one_euro_init(&e, 1.0f, 0.1f, 1.0f, 0.0f), KF_ERR_PARAM);  /* dt<=0 */
 }
 
+/* ---- Fixed-point (integer) variants for FPU-less parts. ------------------ */
+static void test_ma_fixed(void) {
+    int16_t buf[5];
+    MovingAverageFixed m;
+    KT_ASSERT_EQ_INT(ma_fixed_init(&m, buf, 5), KF_OK);
+    KT_ASSERT_EQ_INT(ma_fixed_update(&m, 10), 10);   /* warm-up: count 1 */
+    KT_ASSERT_EQ_INT(ma_fixed_update(&m, 20), 15);   /* (10+20)/2 */
+    ma_fixed_reset(&m);
+    for (int i = 0; i < 10; ++i) (void)ma_fixed_update(&m, 4);
+    KT_ASSERT_EQ_INT(ma_fixed_update(&m, 4), 4);
+    KT_ASSERT_EQ_INT(ma_fixed_init(&m, buf, 0), KF_ERR_PARAM);
+    KT_ASSERT_EQ_INT(ma_fixed_init(NULL, buf, 5), KF_ERR_NULL);
+}
+
+static void test_ema_fixed(void) {
+    EMAFixed e;
+    KT_ASSERT_EQ_INT(ema_fixed_init(&e, KF_ALPHA_Q15(0.5f)), KF_OK);
+    KT_ASSERT_EQ_INT(ema_fixed_update(&e, 10), 10);  /* seed */
+    KT_ASSERT_EQ_INT(ema_fixed_update(&e, 20), 15);  /* 10 + 0.5*(20-10) */
+    int16_t y = 0;
+    for (int i = 0; i < 40; ++i) y = ema_fixed_update(&e, 20);
+    KT_ASSERT(y >= 18 && y <= 20);                    /* converges (integer truncation) */
+    KT_ASSERT_EQ_INT(ema_fixed_init(&e, -1), KF_ERR_PARAM);
+}
+
 int main(void) {
     printf("k_filter %s tests\n", K_FILTER_VERSION);
     KT_RUN(test_ma_warmup_and_average);
@@ -279,5 +305,7 @@ int main(void) {
     KT_RUN(test_slew_limits_step);
     KT_RUN(test_deadband_holds);
     KT_RUN(test_one_euro_converges);
+    KT_RUN(test_ma_fixed);
+    KT_RUN(test_ema_fixed);
     return KT_SUMMARY();
 }
