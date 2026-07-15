@@ -18,7 +18,7 @@ SRC     := src/k_filter.c
 # Optional coefficient designers (needs libm) — NOT part of the freestanding core.
 DESIGN  := src/k_filter_design.c
 
-.PHONY: all test run parity compare footprint analyze cross clean
+.PHONY: all test run parity compare bode footprint bench coverage analyze cross clean
 
 all: $(BUILD)/example
 
@@ -48,11 +48,29 @@ parity: $(BUILD)/parity_dump
 compare:
 	python3 sim/compare.py --all
 
+# Empirical frequency response (gain/phase) of the frequency-shaping filters.
+bode:
+	python3 sim/bode.py
+
 $(BUILD)/footprint: test/footprint.c $(SRC) | $(BUILD)
 	$(CC) $(CSTD) $(WARN) $(CFLAGS) $(INC) $^ -o $@ -lm
 
 footprint: $(BUILD)/footprint
 	./$(BUILD)/footprint
+
+$(BUILD)/bench: test/bench.c $(SRC) $(DESIGN) | $(BUILD)
+	$(CC) $(CSTD) $(WARN) -O3 $(INC) $^ -o $@ -lm
+
+bench: $(BUILD)/bench
+	./$(BUILD)/bench
+
+# Line/branch coverage of the unit tests (needs gcov/lcov; llvm-cov on macOS).
+coverage:
+	$(CC) $(CSTD) $(INC) -Itest --coverage -O0 -g \
+	  test/test_filters.c $(SRC) $(DESIGN) -o $(BUILD)/cov -lm
+	./$(BUILD)/cov >/dev/null
+	@command -v gcov >/dev/null 2>&1 && gcov -n -o . src/k_filter.c 2>/dev/null | grep -A1 "k_filter.c" \
+	  || echo "gcov not found — coverage data written to *.gcda"
 
 analyze:
 	@command -v cppcheck >/dev/null 2>&1 \

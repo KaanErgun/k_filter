@@ -143,10 +143,17 @@ float clean = biquad_update(&notch, raw);
 make test      # build + run the unit tests (-Wall -Wextra -Wconversion -Werror)
 make parity    # assert the C and Python implementations agree numerically
 make compare   # rank the smoothing filters on every test signal (pure Python)
+make bode      # empirical gain/phase (frequency response) of the shaping filters
+make bench     # per-filter ns/update micro-benchmark
+make coverage  # line coverage of the unit tests (gcov)
 make run       # run the example
 make cross     # freestanding cross-compile for Cortex-M0+ (needs arm-none-eabi-gcc)
 make analyze   # cppcheck static analysis (if installed)
 ```
+
+Verification runs **locally** via these targets — there is no hosted CI. Before committing, a quick
+`make test && make parity && make cross` covers correctness, C/Python agreement, and the
+freestanding-embedded guardrail.
 
 ### Which filter should I use?
 
@@ -163,10 +170,6 @@ MovingAvg     0.152   0.131          5.64       2    26.5   —
 AlphaBeta     0.208   0.208          2.93       0    50.3   —
   Best reconstruction : MovingAvg   ·   Lowest lag : AlphaBeta
 ```
-
-CI (GitHub Actions) runs the tests under gcc & clang, the C-vs-Python parity check, cppcheck, and a
-freestanding `arm-none-eabi` cross-compile that fails if any forbidden dependency sneaks into the
-runtime.
 
 ---
 
@@ -215,6 +218,7 @@ python sim/simulate.py        # generates simulated_filters.png (6-panel compari
 ```
 
 The `sim/filters.py` classes mirror the C filters exactly; `make parity` proves they haven't drifted.
+`make bode` prints their empirical frequency response, and `make compare` ranks them per test signal.
 
 ---
 

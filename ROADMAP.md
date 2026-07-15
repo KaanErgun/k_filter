@@ -34,8 +34,9 @@ These repair defects in the existing 5 filters and lay the v2.0 groundwork. Orde
       pinning both the fixes and the intentional quirks.
 - [x] **Build system** — `Makefile` (build / test / parity / cross / analyze) + optional `CMakeLists.txt`.
       The "copy two files" integration story stays canonical.
-- [x] **CI** — GitHub Actions: gcc+clang `-Wall -Wextra -Wconversion -Werror`, cppcheck, C-vs-Python
-      parity, and an `arm-none-eabi` freestanding cross-compile + forbidden-`#include` grep guardrail.
+- [x] **Local verification guardrails** — `make` targets covering gcc+clang `-Werror`, cppcheck,
+      C-vs-Python parity, and an `arm-none-eabi` freestanding cross-compile + forbidden-`#include`
+      grep. Run locally (no GitHub Actions — project preference).
 
 Also delivered alongside Tier 0: **`kf_float_t` configurable scalar type** and the **C-vs-Python
 parity harness** (both were Tier 1 — pulled forward because they touched every signature / locked the
@@ -64,7 +65,7 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
       equal. Keeps the teaching mirror honest. Now covers 8 filters. *(Delivered in Tier 0.)*
 - [x] **Python metrics engine** — RMSE, lag-compensated RMSE, error-reduction (dB), lag
       (cross-correlation), overshoot/settling. Ranked side-by-side table in `sim/metrics.py` +
-      the `sim/compare.py` workbench (`make compare`). Pure-Python, runs in CI.
+      the `sim/compare.py` workbench (`make compare`). Pure-Python (no numpy).
 - [x] **Python test-signal library** — step / ramp / impulse / square / chirp / sine + spike
       injection + CSV import, in `sim/signals.py` (pure-Python, no numpy).
 - [x] **Footprint / worst-case-timing / ISR-reentrancy documentation table** — real `sizeof` numbers
@@ -79,8 +80,11 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
 - [x] **One-Euro filter** — adaptive-cutoff low-pass for jittery interactive (touch / IMU-UI) input.
       libm-free (the 2*pi is a compile-time constant). Verified: seeds and converges to the level.
 - [ ] **Optional fixed-point (Q15/Q16) variants** for FPU-less parts, behind a toggle.
-- [ ] **Golden-vector regression tests + coverage gate + micro-benchmark report.**
-- [ ] **Empirical Bode / step-response characterization** in the sim.
+- [x] **Coverage + micro-benchmark report** — `make coverage` (gcov line coverage of the tests) and
+      `make bench` (ns/update per filter). *(Golden-vector regression still pending.)*
+- [x] **Empirical Bode / step-response characterization** — `make bode` prints per-filter gain (dB) /
+      phase across frequency (verified: MA(5) nulls at fs/5, biquad −3 dB at its design cutoff);
+      step overshoot/settling already come from `make compare`.
 - [ ] **Failure-mode diagnostic gallery** — visualizes the (now-fixed) defects as teaching examples.
 - [ ] **Interactive slider tuner + metrics-derived filter-picker.**
 - [ ] **Auto-generated README hero figure + metrics table.**
@@ -101,7 +105,7 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   helpers) hides behind a compile-time gate or is precomputed offline.
 - ❌ **Fixed-point / double are opt-in only** — never bloat the default `float32` path.
 - ❌ **Keep `update(f, x) -> float`** — the only sanctioned exception is the complementary filter.
-- ❌ **Tests / CI / sim are strictly host-side** — nothing flashed to an MCU.
+- ❌ **Tests / tooling / sim are strictly host-side** — nothing flashed to an MCU.
 - ❌ **No web dashboard / server** (Plotly/Dash/Streamlit) — the matplotlib slider tuner delivers ~90%
   with zero new deps. (Proposed and dropped.)
 - ❌ **No matrix EKF/UKF** — the alpha-beta tracker is the intended lightweight tracking answer.
@@ -117,8 +121,8 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   dependency-free (no `<stdlib.h>`); `kf_status_t` validation, uniform warm-up, `reset`/`peek`/
   `set_alpha`, `uint16_t` sizes, `kf_float_t`, wide MA accumulator. 38 unit checks pass under
   gcc/clang `-Werror`; CMake + ctest green; C-vs-Python parity ~5e-15 over 400 samples; example shows
-  Kalman tracking. CI (tests × gcc/clang, parity, cppcheck, arm freestanding + include guardrail) added.
-  `kf_float_t` and the parity harness pulled forward from Tier 1.
+  Kalman tracking. Local verification guardrails (tests × gcc/clang, parity, cppcheck, arm freestanding
+  + include grep) added as `make` targets. `kf_float_t` and the parity harness pulled forward from Tier 1.
 - **2026-07-15** — **Tier 1 filters complete.** Added 4 new filters — alpha-beta tracker (zero ramp
   lag), DC blocker / high-pass, complementary (2-input fusion), and biquad (DF2T) with an optional
   RBJ coefficient designer (`src/k_filter_design.c`, libm-isolated). Library now has **9 filters**.
@@ -128,7 +132,7 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   square/chirp/sine + spike injection + CSV import) and `sim/metrics.py` (RMSE, lag-compensated RMSE,
   error-reduction dB, cross-correlation lag, overshoot, settling), driven by `sim/compare.py`
   (`make compare`) which ranks the smoothers per signal with a plain-language recommendation. All
-  pure-Python (no numpy) and smoke-tested in CI.
+  pure-Python (no numpy).
 - **2026-07-15** — **Embedded ergonomics (It.4) — Tier 1 complete.** Added `KF_ENABLE_*` compile-time
   toggles (disabling a filter strips its code — verified via `nm`), a `KF_STATIC_ASSERT` macro (C11
   `_Static_assert` with a C99 fallback) guarding `KF_MEDIAN_MAX_WINDOW`, a `make footprint` target,
@@ -137,5 +141,10 @@ These were considered and **deliberately excluded** to avoid betraying the ident
 - **2026-07-15** — **Tier 2 filters (It.5).** Added Hampel (robust outlier rejection), slew-rate
   limiter, deadband/hysteresis, and the One-Euro adaptive-cutoff filter (all libm-free, toggle-gated).
   Library now has **13 filters**. **82 unit checks** pass under `-Werror`; parity harness extended to
-  **12 filters** (~5e-15). **Next (It.6): QA + sim polish** — golden-vector regression, coverage gate,
-  micro-benchmark report, empirical Bode/step response, failure-mode gallery.
+  **12 filters** (~5e-15).
+- **2026-07-15** — **QA + sim polish (It.6).** Added `make bench` (per-filter ns/update — Deadband
+  1.2 ns … Hampel 29 ns, confirming the median/Hampel are the costly paths), `make coverage` (gcov),
+  and `sim/bode.py` / `make bode` (empirical gain/phase; MA(5) nulls at fs/5, biquad −3 dB at cutoff).
+  **Removed the GitHub Actions workflow** at the user's request — all verification is now local `make`
+  targets. **Next (It.7): fixed-point Q15/Q16 variants.** (Deferred backlog: golden-vector regression,
+  failure-mode gallery, slider tuner, true O(w) streaming median, README asset auto-gen.)

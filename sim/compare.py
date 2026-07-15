@@ -3,7 +3,7 @@
 
 Runs the smoothing filters over a chosen test signal and prints a ranked metrics
 table plus a plain-language recommendation. Pure-Python (stdlib only) — no numpy,
-so it runs anywhere, including CI.
+so it runs anywhere with just python3.
 
 Usage:
     python3 sim/compare.py                 # default: step signal

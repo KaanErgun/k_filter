@@ -3,7 +3,7 @@
 
 Feeds a deterministic input vector through the compiled C harness (built with
 -DKF_USE_DOUBLE) and through the Python mirror in filters.py, then asserts the
-outputs agree. Pure-Python (no numpy) so CI needs only python3 + a C compiler.
+outputs agree. Pure-Python (no numpy) so it needs only python3 + a C compiler.
 
 Usage:  python3 sim/parity_test.py <path-to-parity_dump-binary>
 """

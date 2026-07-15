@@ -4,6 +4,11 @@
 *.elf
 build/
 
+# Kapsam (coverage) çıktıları
+*.gcda
+*.gcno
+*.gcov
+
 # MacOS özel dosyaları
 .DS_Store
 
