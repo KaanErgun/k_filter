@@ -9,6 +9,12 @@ build/
 *.gcno
 *.gcov
 
+# HDL simülasyon çıktıları
+*.vvp
+*.cf
+e~*.o
+work-obj*.cf
+
 # MacOS özel dosyaları
 .DS_Store
 

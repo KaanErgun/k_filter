@@ -152,5 +152,13 @@ These were considered and **deliberately excluded** to avoid betraying the ident
 - **2026-07-15** — **Fixed-point variants (It.7).** Added `src/k_filter_fixed.c` +
   `include/k_filter_fixed.h`: integer moving-average and Q15 EMA/low-pass for FPU-less parts (no float,
   no libm, no 64-bit; saturating). **93 unit checks** pass; the fixed-point object verified integer-only.
-  Remaining backlog (lower priority): golden-vector regression, failure-mode gallery, slider tuner,
-  true O(w) streaming median, README asset auto-gen.
+- **2026-07-15** — **HDL: Verilog + VHDL for FPGA/ASIC (It.8).** Added synthesizable `ema_q15`,
+  `moving_avg`, and `dc_blocker_q15` in **both Verilog** (`hdl/verilog/`) **and VHDL** (`hdl/vhdl/`),
+  each a synchronous streaming block. Added Python integer golden models (`sim/fixed_models.py`) and a
+  cross-language parity harness (`sim/hdl_parity.py`, `make hdl`) that runs the same stimulus through
+  Python, Verilog (Icarus), VHDL (GHDL), and C, asserting **bit-exact** agreement (verified: Python ==
+  Verilog == VHDL == C over 200 samples). Aligned the C `ema_fixed` requantization to an arithmetic
+  shift so all four targets match. Now an embedded dev can pick a filter/params in Python and deploy
+  the identical behavior to an MCU (C) or fabric (Verilog/VHDL).
+  Remaining backlog (lower priority): more HDL filters (biquad/FIR/median network), golden-vector
+  regression, failure-mode gallery, slider tuner, true O(w) streaming median, README asset auto-gen.

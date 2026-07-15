@@ -20,7 +20,7 @@ DESIGN  := src/k_filter_design.c
 # Optional fixed-point (integer) variants for FPU-less parts.
 FIXED   := src/k_filter_fixed.c
 
-.PHONY: all test run parity compare bode footprint bench coverage analyze cross clean
+.PHONY: all test run parity compare bode hdl footprint bench coverage analyze cross clean
 
 all: $(BUILD)/example
 
@@ -53,6 +53,11 @@ compare:
 # Empirical frequency response (gain/phase) of the frequency-shaping filters.
 bode:
 	python3 sim/bode.py
+
+# HDL (Verilog + VHDL) bit-exact parity vs the Python golden models.
+# Needs Icarus Verilog (iverilog) and/or GHDL; missing tools are skipped.
+hdl:
+	python3 sim/hdl_parity.py
 
 $(BUILD)/footprint: test/footprint.c $(SRC) | $(BUILD)
 	$(CC) $(CSTD) $(WARN) $(CFLAGS) $(INC) $^ -o $@ -lm

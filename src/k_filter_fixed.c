@@ -58,9 +58,11 @@ int16_t ema_fixed_update(EMAFixed *filt, int16_t new_sample) {
         return filt->y;
     }
     /* diff in [-65535, 65535]; alpha_q15 <= 32767 -> product fits int32.
-     * Divide (not >>) so the sign handling is well-defined/portable for negatives. */
+     * Arithmetic right shift by 15 (floor) — the natural hardware requantization,
+     * so this matches the Verilog/VHDL and Python fixed-point models bit-for-bit.
+     * Signed >> is arithmetic on every supported target (documented assumption). */
     diff = (int32_t)new_sample - (int32_t)filt->y;
-    inc = ((int32_t)filt->alpha_q15 * diff) / 32768;
+    inc = ((int32_t)filt->alpha_q15 * diff) >> 15;
     filt->y = kf_sat16((int32_t)filt->y + inc);
     return filt->y;
 }

@@ -4,8 +4,9 @@
 
 `k_filter` is a small, dependency-free filter library for embedded systems. It implements the most
 common signal-processing filters used to smooth noisy sensor data — with **no heap allocation** and,
-as of v2.0, **no runtime dependencies at all** (not even `<stdlib.h>`). It ships with a Python
-simulation suite that visualizes each filter and is kept numerically in lock-step with the C code.
+as of v2.0, **no runtime dependencies at all** (not even `<stdlib.h>`). The same filters also come as
+synthesizable **Verilog and VHDL** for FPGA/ASIC, and a Python model that is **bit-exact** with the C
+and HDL — so a design validated in Python behaves identically on an MCU, a CPU, or in fabric.
 
 See [ROADMAP.md](ROADMAP.md) for the v2.0 plan and what is coming next.
 
@@ -64,10 +65,16 @@ k_filter/
 │   ├── k_test.h
 │   ├── test_filters.c
 │   └── parity_dump.c
-├── sim/                      # Python simulation (numpy + matplotlib)
-│   ├── filters.py            #   mirror of the C filters
+├── hdl/                      # FPGA/ASIC — synthesizable Verilog + VHDL
+│   ├── verilog/              #   *.v modules + generic testbench
+│   └── vhdl/                 #   *.vhd modules + testbenches
+├── sim/                      # Python simulation + models
+│   ├── filters.py            #   float mirror of the C filters
+│   ├── fixed_models.py       #   integer golden models for the HDL
 │   ├── simulate.py           #   6-panel visualization
-│   └── parity_test.py        #   asserts C and Python agree
+│   ├── compare.py / bode.py  #   metrics workbench / frequency response
+│   ├── parity_test.py        #   asserts C and Python agree
+│   └── hdl_parity.py         #   asserts Python == Verilog == VHDL == C
 ├── Makefile                  # host build/test/cross tooling
 ├── CMakeLists.txt            # optional, additive
 ├── ROADMAP.md
@@ -145,6 +152,7 @@ make test      # build + run the unit tests (-Wall -Wextra -Wconversion -Werror)
 make parity    # assert the C and Python implementations agree numerically
 make compare   # rank the smoothing filters on every test signal (pure Python)
 make bode      # empirical gain/phase (frequency response) of the shaping filters
+make hdl       # bit-exact parity: Python == Verilog == VHDL == C (needs iverilog/ghdl)
 make bench     # per-filter ns/update micro-benchmark
 make coverage  # line coverage of the unit tests (gcov)
 make run       # run the example
@@ -235,6 +243,49 @@ python sim/simulate.py        # generates simulated_filters.png (6-panel compari
 
 The `sim/filters.py` classes mirror the C filters exactly; `make parity` proves they haven't drifted.
 `make bode` prints their empirical frequency response, and `make compare` ranks them per test signal.
+
+---
+
+## 🔲 FPGA / ASIC (Verilog & VHDL)
+
+The same filters are provided as synthesizable **Verilog** and **VHDL** so the same design runs on an
+MCU/CPU (C) *or* on an FPGA/ASIC (HDL) — and you can validate your data **bit-for-bit against Python**
+before committing to silicon.
+
+| Module | Verilog | VHDL | Kind |
+|--------|---------|------|------|
+| `ema_q15` | [hdl/verilog/ema_q15.v](hdl/verilog/ema_q15.v) | [hdl/vhdl/ema_q15.vhd](hdl/vhdl/ema_q15.vhd) | Q15 EMA / 1st-order low-pass |
+| `moving_avg` | [hdl/verilog/moving_avg.v](hdl/verilog/moving_avg.v) | [hdl/vhdl/moving_avg.vhd](hdl/vhdl/moving_avg.vhd) | power-of-2 boxcar |
+| `dc_blocker_q15` | [hdl/verilog/dc_blocker_q15.v](hdl/verilog/dc_blocker_q15.v) | [hdl/vhdl/dc_blocker_q15.vhd](hdl/vhdl/dc_blocker_q15.vhd) | Q15 high-pass / DC blocker |
+
+Each is a synchronous streaming block with a parameterized data `WIDTH` and coefficient:
+
+```verilog
+ema_q15 #(.WIDTH(16), .ALPHA(3277)) u_lp (   // ALPHA in Q15  (~0.1)
+    .clk(clk), .rst(rst),
+    .in_valid(sample_valid), .x(adc_sample),  // signed input
+    .y(filtered), .out_valid(filtered_valid)   // signed output
+);
+```
+
+**Bit-exact, everywhere.** All arithmetic is integer with an arithmetic right shift for the Q15
+requantization, chosen so **C (`k_filter_fixed.c`), Python (`sim/fixed_models.py`), Verilog, and VHDL
+produce identical outputs sample-for-sample.** Verify it yourself:
+
+```bash
+make hdl        # streams one vector through Python, Verilog (iverilog), VHDL (ghdl) and C, asserts equality
+```
+
+```
+filter           samples    Verilog   VHDL    C   verdict
+ema_q15              200          ✓      ✓    ✓   BIT-EXACT ✓
+moving_avg           200          ✓      ✓    —   BIT-EXACT ✓
+dc_blocker_q15       200          ✓      ✓    —   BIT-EXACT ✓
+```
+
+Needs [Icarus Verilog](http://iverilog.icarus.com/) and/or [GHDL](https://ghdl.github.io/ghdl/);
+missing tools are skipped, not failed. So: prototype and pick parameters in Python, deploy the exact
+same behavior to an MCU in C or to fabric in Verilog/VHDL.
 
 ---
 
