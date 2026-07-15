@@ -1,20 +1,45 @@
-# k_filter - Embedded Filtering Library with Python Simulation
+# k_filter — Embedded Filtering Library with Python Simulation
 
-`k_filter` is a lightweight, dependency-free filter library designed specifically for embedded systems. It provides implementations of the most common and useful signal processing filters to smooth out noisy sensor data.
+**Version 2.0** &nbsp;·&nbsp; lightweight · dependency-free · deterministic
 
-This project also includes a Python-based simulation suite to visualize how each filter works on synthetic noisy data.
+`k_filter` is a small, dependency-free filter library for embedded systems. It implements the most
+common signal-processing filters used to smooth noisy sensor data — with **no heap allocation** and,
+as of v2.0, **no runtime dependencies at all** (not even `<stdlib.h>`). It ships with a Python
+simulation suite that visualizes each filter and is kept numerically in lock-step with the C code.
+
+See [ROADMAP.md](ROADMAP.md) for the v2.0 plan and what is coming next.
 
 ---
 
 ## ✨ Supported Filters
 
 | Filter Type                 | Description                                                                 |
-|----------------------------|-----------------------------------------------------------------------------|
-| Moving Average             | Averages the last N samples. Simple and effective for smoothing slow signals. |
-| Low-Pass IIR Filter        | Exponentially weighted moving average for real-time applications.           |
-| Median Filter              | Good at rejecting outliers and spikes in data.                             |
-| Exponential Moving Average | Memory-efficient version of moving average.                                |
-| Kalman Filter (1D)         | Estimates true state from noisy measurements with probabilistic reasoning.  |
+|-----------------------------|-----------------------------------------------------------------------------|
+| Moving Average              | Averages the last N samples. Count-normalized warm-up (no startup bias).     |
+| Low-Pass IIR                | 1st-order exponential smoothing; seeds on the first sample.                   |
+| Median                      | Rejects outliers/spikes. No `qsort`, no VLA — bounded, deterministic timing.  |
+| Exponential Moving Average  | Memory-efficient smoothing (mathematically a 1st-order low-pass).            |
+| Kalman Filter (1D)          | Scalar tracker **with process noise Q** — keeps tracking a moving signal.     |
+
+---
+
+## 🆕 What's new in 2.0
+
+- **Kalman actually tracks now.** v1 had no process noise, so its gain decayed to zero and the estimate
+  *froze* on any moving signal. v2.0 adds `Q` (a real time-update step) so it keeps following the signal.
+- **Genuinely dependency-free runtime.** The median filter no longer calls `qsort` or uses a C99
+  stack VLA, so the library drops its last `#include <stdlib.h>`. Timing is now bounded and
+  deterministic — safe for control loops and ISR budgets.
+- **Input validation + status codes.** Every `*_init` returns a `kf_status_t` and rejects NULL
+  buffers, bad sizes, and out-of-range `alpha`. The hot `update()` path stays branch-free.
+- **Uniform warm-up.** All filters seed cleanly on the first sample (no ramp-from-zero, no
+  divide-by-full-window bias).
+- **`reset()` / `set_alpha()` / `peek()`** on the filters, plus fixed-width sized types (`uint16_t`),
+  a configurable scalar type (`kf_float_t`, default `float`; `-DKF_USE_DOUBLE` for double), and a
+  wide (`double`) moving-average accumulator to resist drift on always-on runs.
+
+> Migrating from 1.x? `kalman_init` takes an extra `process_noise` (Q) argument, and the `*_init`
+> functions now return `kf_status_t`. See [examples/filter_test.c](examples/filter_test.c).
 
 ---
 
@@ -22,40 +47,49 @@ This project also includes a Python-based simulation suite to visualize how each
 
 ```
 k_filter/
-├── include/                # Header file with filter API
-│   └── k_filter.h
-├── src/                    # C source file
-│   └── k_filter.c
-├── examples/               # Usage example in C
-│   └── filter_test.c
-├── sim/                    # Python simulation
-│   ├── filters.py
-│   └── simulate.py
-├── .gitignore              # Ignores venv, pycache, build outputs
-└── README.md               # This file
+├── include/k_filter.h        # Public API (single header)
+├── src/k_filter.c            # Implementation (single .c, dependency-free)
+├── examples/filter_test.c    # Usage example
+├── test/                     # Host-only unit tests + parity harness
+│   ├── k_test.h
+│   ├── test_filters.c
+│   └── parity_dump.c
+├── sim/                      # Python simulation (numpy + matplotlib)
+│   ├── filters.py            #   mirror of the C filters
+│   ├── simulate.py           #   6-panel visualization
+│   └── parity_test.py        #   asserts C and Python agree
+├── Makefile                  # host build/test/cross tooling
+├── CMakeLists.txt            # optional, additive
+├── ROADMAP.md
+└── README.md
 ```
 
 ---
 
 ## 🔧 Integration Guide
 
-### 1. Copy Files
-
-Copy these files into your embedded project:
+The canonical path is still **copy two files**:
 
 ```
 include/k_filter.h
 src/k_filter.c
 ```
 
-### 2. Update Include Paths (if using Makefile)
+With a Makefile:
 
 ```make
 CFLAGS += -Ik_filter/include
-SRCS += k_filter/src/k_filter.c
+SRCS   += k_filter/src/k_filter.c
 ```
 
-### 3. Use in Your Code
+Or with CMake (additive convenience):
+
+```cmake
+add_subdirectory(k_filter)
+target_link_libraries(app PRIVATE k_filter)
+```
+
+### Use in your code
 
 ```c
 #include "k_filter.h"
@@ -63,40 +97,49 @@ SRCS += k_filter/src/k_filter.c
 float buffer[5];
 MovingAverageFilter ma;
 
-ma_init(&ma, buffer, 5);
+if (ma_init(&ma, buffer, 5) != KF_OK) { /* handle bad params */ }
 float filtered = ma_update(&ma, raw_sensor_value);
 ```
 
-> ✅ No heap allocation used. No dependencies on standard libraries (except `stdlib.h` for `qsort`).
+Kalman with process noise (keeps tracking):
+
+```c
+KalmanFilter kf;
+/* error_measure R, initial error P0, process noise Q, initial estimate x0 */
+kalman_init(&kf, 0.25f, 1.0f, 0.05f, 0.0f);
+float estimate = kalman_update(&kf, measurement);
+```
+
+> ✅ No heap allocation (grep-able `KF_NO_HEAP`). No libc/libm in the runtime. Inputs are assumed
+> finite (reject NaN/Inf upstream if your source can emit one).
 
 ---
 
-## 🧪 Python Simulation
-
-We’ve also included a Python script to visualize how each filter processes a noisy signal.
-
-### ✅ Requirements
-
-Create a virtual environment and install dependencies:
+## 🧪 Build, Test & Verify
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+make test      # build + run the unit tests (-Wall -Wextra -Wconversion -Werror)
+make parity    # assert the C and Python implementations agree numerically
+make run       # run the example
+make cross     # freestanding cross-compile for Cortex-M0+ (needs arm-none-eabi-gcc)
+make analyze   # cppcheck static analysis (if installed)
+```
+
+CI (GitHub Actions) runs the tests under gcc & clang, the C-vs-Python parity check, cppcheck, and a
+freestanding `arm-none-eabi` cross-compile that fails if any forbidden dependency sneaks into the
+runtime.
+
+---
+
+## 📊 Python Simulation
+
+```bash
+python3 -m venv venv && source venv/bin/activate
 pip install numpy matplotlib
+python sim/simulate.py        # generates simulated_filters.png (6-panel comparison)
 ```
 
-### ▶️ Run the Simulation
-
-```bash
-python sim/simulate.py
-```
-
-It will generate and show a 6-panel graph:
-
-1. Clean vs noisy input  
-2. Output of each filter
-
-This helps visually understand the difference between filters.
+The `sim/filters.py` classes mirror the C filters exactly; `make parity` proves they haven't drifted.
 
 ---
 
@@ -114,9 +157,9 @@ This helps visually understand the difference between filters.
 
 ## 🤝 Contributing
 
-Pull requests are welcome! Add filters, optimize memory usage, or extend the Python simulation.
-
----
+Pull requests welcome — see [ROADMAP.md](ROADMAP.md) for planned filters (biquad/notch, alpha-beta
+tracker, DC blocker, complementary filter, …) and the anti-scope guardrails that keep the library
+lightweight and dependency-free.
 
 ## 📜 License
 

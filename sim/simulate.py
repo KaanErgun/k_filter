@@ -14,7 +14,8 @@ ma = MovingAverage(5)
 lp = LowPass(0.1)
 med = Median(5)
 ema = EMA(0.1)
-kalman = Kalman1D(error_measure=0.25, error_estimate=1.0, initial_estimate=0)
+kalman = Kalman1D(error_measure=0.25, error_estimate=1.0,
+                  process_noise=0.05, initial_estimate=0)
 
 # Filtrelenmiş sinyalleri üret
 ma_filtered = [ma.update(s) for s in noisy]

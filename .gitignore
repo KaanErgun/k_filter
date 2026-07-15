@@ -2,6 +2,7 @@
 *.o
 *.out
 *.elf
+build/
 
 # MacOS özel dosyaları
 .DS_Store
