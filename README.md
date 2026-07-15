@@ -138,9 +138,26 @@ float clean = biquad_update(&notch, raw);
 ```bash
 make test      # build + run the unit tests (-Wall -Wextra -Wconversion -Werror)
 make parity    # assert the C and Python implementations agree numerically
+make compare   # rank the smoothing filters on every test signal (pure Python)
 make run       # run the example
 make cross     # freestanding cross-compile for Cortex-M0+ (needs arm-none-eabi-gcc)
 make analyze   # cppcheck static analysis (if installed)
+```
+
+### Which filter should I use?
+
+`make compare` (or `python3 sim/compare.py --signal <step|ramp|impulse|square|chirp|sine>`)
+runs every smoothing filter over a test signal and prints a ranked table — RMSE, a
+lag-compensated RMSE, noise/error reduction in dB, delay in samples, and step overshoot /
+settling — so you can pick a filter *and* a parameter for your signal instead of guessing:
+
+```
+=== signal: step  (n=200) ===
+Filter        RMSE    RMSE(lag-comp) ErrRed(dB) Lag  Over%  Settle
+Kalman        0.149   0.139          5.79       1    30.5   —
+MovingAvg     0.152   0.131          5.64       2    26.5   —
+AlphaBeta     0.208   0.208          2.93       0    50.3   —
+  Best reconstruction : MovingAvg   ·   Lowest lag : AlphaBeta
 ```
 
 CI (GitHub Actions) runs the tests under gcc & clang, the C-vs-Python parity check, cppcheck, and a

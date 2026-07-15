@@ -28,6 +28,9 @@ jobs:
       - name: C-vs-Python parity
         working-directory: k_filter
         run: make parity
+      - name: comparison workbench (smoke)
+        working-directory: k_filter
+        run: make compare
 
   # Static analysis (cppcheck) over the shipped library.
   analyze:

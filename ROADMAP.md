@@ -62,11 +62,12 @@ mirror). Verified: parity agrees to ~5e-15 over 400 samples.
       grep-able `KF_NO_HEAP` marker. *(`KF_NO_HEAP` marker already added in Tier 0.)*
 - [x] **C-vs-Python parity harness** — a checked-in input vector run through both sides, asserted
       equal. Keeps the teaching mirror honest. Now covers 8 filters. *(Delivered in Tier 0.)*
-- [ ] **Python metrics engine** — RMSE, error-reduction (dB), lag, overshoot/settling + a
-      side-by-side comparison table. *(next up)*
-- [ ] **Python test-signal library** — step / ramp / impulse / square / chirp + spike injection +
-      CSV import of a real sensor trace.
-- [ ] **Footprint / worst-case-timing / ISR-reentrancy documentation table.**
+- [x] **Python metrics engine** — RMSE, lag-compensated RMSE, error-reduction (dB), lag
+      (cross-correlation), overshoot/settling. Ranked side-by-side table in `sim/metrics.py` +
+      the `sim/compare.py` workbench (`make compare`). Pure-Python, runs in CI.
+- [x] **Python test-signal library** — step / ramp / impulse / square / chirp / sine + spike
+      injection + CSV import, in `sim/signals.py` (pure-Python, no numpy).
+- [ ] **Footprint / worst-case-timing / ISR-reentrancy documentation table.** *(next up)*
 
 ## Tier 2 — Nice to have
 
@@ -118,5 +119,10 @@ These were considered and **deliberately excluded** to avoid betraying the ident
   lag), DC blocker / high-pass, complementary (2-input fusion), and biquad (DF2T) with an optional
   RBJ coefficient designer (`src/k_filter_design.c`, libm-isolated). Library now has **9 filters**.
   **59 unit checks** pass under `-Werror`; parity harness extended to **8 filters** (~5e-15); core
-  object verified free of malloc/qsort/trig/printf. **Next: Python metrics engine + test-signal
-  library**, then Tier 1's footprint/timing docs and compile-time feature toggles.
+  object verified free of malloc/qsort/trig/printf.
+- **2026-07-15** — **Python decision workbench (It.3).** Added `sim/signals.py` (step/ramp/impulse/
+  square/chirp/sine + spike injection + CSV import) and `sim/metrics.py` (RMSE, lag-compensated RMSE,
+  error-reduction dB, cross-correlation lag, overshoot, settling), driven by `sim/compare.py`
+  (`make compare`) which ranks the smoothers per signal with a plain-language recommendation. All
+  pure-Python (no numpy) and smoke-tested in CI. **Next (It.4): footprint/timing docs + compile-time
+  feature toggles** to close Tier 1.
